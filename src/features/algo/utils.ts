@@ -3,8 +3,10 @@
 // algo/utils: shared helpers for pathfinding algorithms and maze generators.
 // - random/randomOdd/randomEven/shuffle: RNG helpers (odd/even used for the maze cell lattice)
 // - neighbors4/second_neighbors4: 4-directional and 2-cell-away neighbor offsets
+// - pathCost: what a path really costs, the weight of every cell after the first (never entered).
+//   Used by every algorithm, so one that ignores weights still reports its true cost
 
-import { Coord } from '@/types/grid';
+import { Coord, GridSnapShot } from '@/types/grid';
 
 export const random = (min: number, max: number) => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -48,4 +50,14 @@ export const second_neighbors4 = (p: Coord): Coord[] => {
     const dr = [-2, 0, 2, 0];
     const dc = [0, 2, 0, -2];
     return create_neighbors(p, dr, dc);
+};
+
+export const pathCost = (path: Coord[], grid: GridSnapShot) => {
+    const { cols, weights } = grid;
+    let cost = 0;
+    path.slice(1).forEach((node) => {
+        const id = node.r * cols + node.c;
+        cost += weights[id];
+    });
+    return cost;
 };

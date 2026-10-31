@@ -77,6 +77,19 @@ describe('Grid page', () => {
         expect(useGridStore.getState().weights[0]).toBe(medium);
     });
 
+    // the default algorithm ignores weights, which only matters once the grid has some
+    it('turns the algorithm note red once the grid has weights, and back when they are gone', () => {
+        render(<Grid />);
+        const note = () => screen.getByRole('complementary', { name: 'Stats' }).querySelector('p')!;
+        expect(note()).not.toHaveClass('text-red-700');
+
+        act(() => void useGridStore.getState().setWeight(0, 0, WEIGHT_LEVELS[0]));
+        expect(note()).toHaveClass('text-red-700');
+
+        act(() => void useGridStore.getState().clearWeights());
+        expect(note()).not.toHaveClass('text-red-700');
+    });
+
     // the toolbar's info button and the InfoModal share the page's open state (useInfoModal)
     describe('info dialog', () => {
         const infoDialog = () => screen.getByRole('dialog', { hidden: true }) as HTMLDialogElement;
@@ -132,6 +145,8 @@ describe('Grid page', () => {
         expect(Number(value('Visited')!.textContent)).toBeGreaterThan(0);
         // path cells include both endpoints; the panel shows steps between them
         expect(value('Path')).toHaveTextContent(String(expectedPathLength() - 1));
+        // plain cells cost 1 each, so the cost equals the steps
+        expect(value('Cost')).toHaveTextContent(String(expectedPathLength() - 1));
     });
 
     // Resizing wipes the canvas and the run is re-solved at the new size; the repaint must come

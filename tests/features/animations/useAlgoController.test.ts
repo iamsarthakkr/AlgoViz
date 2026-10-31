@@ -7,6 +7,7 @@ import { bfs } from '@/features/algo/bfs';
 import { dfs } from '@/features/algo/dfs';
 import { lightPalette } from '@/features/painters';
 import { AlgoStatus } from '@/types/algo';
+import { WEIGHT_LEVELS } from '@/utils/constants';
 import { createMockCtx, MockCtx } from '../../helpers/canvas';
 import { installFakeRaf } from '../../helpers/raf';
 
@@ -365,6 +366,64 @@ describe('useAlgoController', () => {
         act(() => useGridStore.getState().refresh());
         expect(result.current.status).toBe(AlgoStatus.initial);
         expect(result.current.pathLen).toBeUndefined();
+    });
+
+    describe('path cost', () => {
+        const STEPS = BFS_PATH - 1; // plain cells cost 1 each, and the start isn't entered
+        const HEAVY = WEIGHT_LEVELS[WEIGHT_LEVELS.length - 1];
+        const onPath = { r: 2, c: 2 }; // the middle of the straight BFS path
+
+        it('is unknown until a path is found', () => {
+            const { result } = render();
+            expect(result.current.pathCost).toBeUndefined();
+            act(() => result.current.play());
+            expect(result.current.pathCost).toBeUndefined();
+        });
+
+        it('reports the cost of the finished path', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS);
+        });
+
+        it('is cleared along with the run', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            act(() => result.current.clear());
+            expect(result.current.pathCost).toBeUndefined();
+        });
+
+        // BFS ignores weights while searching, but must report what its path really costs
+        it('counts weights on the path, even for an algorithm that ignores them', () => {
+            useGridStore.getState().setWeight(onPath.r, onPath.c, HEAVY);
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS - 1 + HEAVY);
+        });
+
+        it('re-solves when a weight is edited after a finished run', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            act(() => {
+                useGridStore.getState().setWeight(onPath.r, onPath.c, HEAVY);
+                useGridStore.getState().refresh();
+            });
+            expect(result.current.status).toBe(AlgoStatus.done);
+            expect(result.current.pathCost).toBe(STEPS - 1 + HEAVY);
+        });
+
+        // no path enters the start and every path enters the goal once, so marker terrain can't matter
+        it('ignores terrain stored under the markers', () => {
+            const api = useGridStore.getState();
+            const { start, goal } = api;
+            api.setWeight(start.r, start.c + 1, HEAVY);
+            api.setWeight(goal.r, goal.c - 1, HEAVY);
+            api.setStart(start.r, start.c + 1);
+            api.setGoal(goal.r, goal.c - 1);
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS - 2);
+        });
     });
 
     // A resize bumps gridVersion (the overlay was wiped and the snapshot's cellSize is stale), so a

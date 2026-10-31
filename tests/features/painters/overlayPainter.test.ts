@@ -36,11 +36,11 @@ describe('overlayPainter', () => {
 
     it('draws the path instantly only when asked to', () => {
         const animated = createMockCtx();
-        paintAlgoEvent(animated, S, { type: 'path', nodes: path, visited: 4 });
+        paintAlgoEvent(animated, S, { type: 'path', nodes: path, visited: 4, cost: 3 });
         expect(animated.fills).toHaveLength(0);
 
         const instant = createMockCtx();
-        paintAlgoEvent(instant, S, { type: 'path', nodes: path, visited: 4 }, { drawPathInstant: true });
+        paintAlgoEvent(instant, S, { type: 'path', nodes: path, visited: 4, cost: 3 }, { drawPathInstant: true });
         expect(instant.fills.map((f) => f.style)).toEqual(Array(4).fill(lightPalette.pathCell));
     });
 

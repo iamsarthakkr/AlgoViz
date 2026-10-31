@@ -7,7 +7,7 @@
 import { Queue } from '@/store/queue';
 import { CellKind, Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { neighbors4 } from './utils';
+import { neighbors4, pathCost } from './utils';
 
 export const bidirectionalBfs: PathFinder = function* (grid) {
     const { rows, cols, cells, start, goal } = grid;
@@ -15,7 +15,7 @@ export const bidirectionalBfs: PathFinder = function* (grid) {
     // early return for start == end since the algo checks neighbors and not the actual start/end
     if (start.r === goal.r && start.c === goal.c) {
         yield { type: 'enqueue', at: start };
-        yield { type: 'path', nodes: [start], visited: 0 };
+        yield { type: 'path', nodes: [start], visited: 0, cost: 0 };
         return;
     }
 
@@ -88,5 +88,5 @@ export const bidirectionalBfs: PathFinder = function* (grid) {
         path.push(...tail);
     }
 
-    yield { type: 'path', nodes: path, visited };
+    yield { type: 'path', nodes: path, visited, cost: pathCost(path, grid) };
 };

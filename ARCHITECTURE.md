@@ -241,7 +241,9 @@ goal, markersHidden]`.
 
 ```ts
 type AlgoEvent =
-    { type: 'enqueue'; at: Coord } | { type: 'visit'; at: Coord } | { type: 'path'; nodes: Coord[]; visited: number };
+    | { type: 'enqueue'; at: Coord }
+    | { type: 'visit'; at: Coord }
+    | { type: 'path'; nodes: Coord[]; visited: number; cost: number };
 type PathFinder = (grid: GridSnapShot) => Generator<AlgoEvent, void, void>;
 ```
 
@@ -259,9 +261,16 @@ generator function matching `PathFinder`. Shape is consistent across all four:
 4. Reconstruct the path by walking `parent` back from `goal`, reverse it, and
    `yield {type:'path', nodes, visited}` exactly once, as the generator's final yield.
 
-`dijkstra` currently uses a uniform edge weight of `1` for every step (`const w = 1`) — with
-no weighted-terrain cell kind in the grid, it is behaviorally equivalent to BFS but pays heap
-overhead.
+`dijkstra` is the one algorithm that reads `weights`: stepping into a cell costs `weights[cell]`. It
+stops when the goal is **popped**, not when it is first enqueued, because with weights the first
+route to reach a cell isn't always the cheapest (BFS can stop on enqueue; Dijkstra can't). On a
+plain grid it matches BFS's path length, at the cost of the heap.
+
+Every algorithm reports `cost` on its `path` event through the shared `pathCost(nodes, grid)` in
+`features/algo/utils.ts`: the sum of the weights of every cell after the first, since a path never
+enters its start. So an algorithm that ignores weights while searching still reports what its path
+really costs, which is how the stats panel shows the difference. Marker cells need no special case:
+the snapshot already sets them to the default weight.
 
 `bidirectionalBfs` runs two independent BFS frontiers (`queue[0]` from start, `queue[1]` from
 goal) in lockstep, alternating one pop per frontier per outer loop iteration, and stops the
@@ -372,7 +381,7 @@ This is the biggest piece of glue. Responsibilities:
   runner's status is read _before_ the rebuild, since pausing a running runner changes it.
 - **Event → paint wiring** (`getEventHandler`): grabs the overlay ctx once per snapshot, and
   returns a closure that calls `paintAlgoEvent` for every event, tracks `visitedApprox`
-  (incremented on `visit`), and on the terminal `path` event: sets `pathLen`, unlocks the
+  (incremented on `visit`), and on the terminal `path` event: sets `pathLen` and `pathCost`, unlocks the
   grid (`setGridLock(false)`), and — unless `instant` — cancels any prior path animation and
   starts a new one via `animateFinalPath`, whose per-frame callback keeps the start/goal
   markers redrawn on top (since the overlay animation paints over them cell-by-cell).

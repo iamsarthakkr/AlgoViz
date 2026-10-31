@@ -5,7 +5,7 @@
 
 import { PathFinder } from '@/types/algo';
 import { CellKind, Coord } from '@/types/grid';
-import { equal, neighbors4 } from './utils';
+import { equal, neighbors4, pathCost } from './utils';
 
 export const dfs: PathFinder = function* (grid) {
     const { rows, cols, cells, start, goal } = grid;
@@ -72,5 +72,5 @@ export const dfs: PathFinder = function* (grid) {
         path.reverse();
     }
 
-    yield { type: 'path', nodes: path, visited };
+    yield { type: 'path', nodes: path, visited, cost: pathCost(path, grid) };
 };

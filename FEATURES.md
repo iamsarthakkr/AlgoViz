@@ -35,16 +35,16 @@ be dropped on top of the other marker.
 ## 3. Pathfinding algorithms (Visualize / Step / Pause / Skip-to-end / Clear)
 
 Four algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
-with their metadata (whether they read weights, when their path is guaranteed shortest, a
+with their metadata (whether they read weights, when their path is guaranteed cheapest, a
 one-line description), in `features/algo/registry.ts`; the dropdown, the settings store's default,
 the controller's lookup and the info dialog are all derived from that list:
 
 | Algorithm            | File                  | Notes                                                                                                                           |
 | -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Breadth-first search | `bfs.ts`              | Guarantees shortest path (unweighted); ring-buffer `Queue`.                                                                     |
+| Breadth-first search | `bfs.ts`              | Guarantees the shortest path on an unweighted grid, ignores weights; ring-buffer `Queue`.                                       |
 | Depth-first search   | `dfs.ts`              | Explores greedily, does **not** guarantee shortest path; explicit array-as-stack.                                               |
 | Bidirectional BFS    | `bidirectionalBfs.ts` | Two BFS frontiers grown from start and goal simultaneously, meeting in the middle; typically visits fewer cells than plain BFS. |
-| Dijkstra's           | `dijkstra.ts`         | Binary min-heap priority queue (`store/priority_queue.ts`); currently uniform edge weight (no weighted terrain yet).            |
+| Dijkstra's           | `dijkstra.ts`         | Reads weights and always finds the cheapest path; binary min-heap priority queue (`store/priority_queue.ts`).                   |
 
 Each algorithm is a generator that yields one event per unit of work
 (`enqueue`/`visit`/final `path`) rather than computing the answer up front — this is what
@@ -112,6 +112,8 @@ For the active run, `useAlgoController` tracks and exposes:
 - `visitedApprox` — count of cells visited so far (increments on every `visit` event).
 - `pathLen` — the number of cells on the final path (both endpoints included) once found;
   `undefined` until then, and `0` if the run finishes without reaching the goal.
+- `pathCost` — what the path really costs (the weight of every cell entered), `undefined` until a
+  path is found. Reported by every algorithm, including those that ignore weights while searching.
 - `status` — the runner's `AlgoStatus` (`initial` = ready, `running`, `paused`, `done`), or
   `undefined` before the first run. It comes only from the runner (`onStatusChange`).
 - `runAlgo` — the algorithm of the run these numbers belong to (the active run, which can
@@ -124,8 +126,17 @@ For the active run, `useAlgoController` tracks and exposes:
 - **Visited**: `visitedApprox`.
 - **Path**: the path length in **steps** (`pathLen - 1`, since `pathLen` counts both
   endpoints); "No path" when the run finished without reaching the goal.
+- **Cost**: `pathCost`. Equal to the steps on a plain grid; comparing it across algorithms shows
+  what ignoring weights costs.
+- **Note**: what the _selected_ algorithm guarantees, from its registry `shortest` flag, in red when,
+  on this grid, its path may not be the cheapest: always for `never`, and for `unweighted-only` only
+  once the grid has weights. It has a fixed two-line height on
+  phones, because picking another algorithm mid-run must not change the row's height.
 
-Before the first run, Status and Path show a "-" placeholder (Algo currently shows the selected
+Phones show Status, Visited, Path and Cost; Algo is desktop-only, since the header picker names the
+algorithm there (it can briefly differ after a switch mid-run).
+
+Before the first run, Status, Path and Cost show a "-" placeholder (Algo currently shows the selected
 algorithm until the controller's planned `activeRef` refactor leaves it empty). Every item is rendered in every state:
 on phones the stats are an `auto` grid row, so an item appearing or a value wrapping mid-run
 would change the row's height, resize the grid and stop the run. Only the status is an
@@ -196,4 +207,6 @@ Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5
 - **Rules:** the cost is paid on entering a cell. Only plain cells carry weight: a wall never has
   one, and the start and goal cells never count. A marker dragged across terrain doesn't damage it.
 - **Mazes** start from a fresh board, so generating one removes all weights.
-- **Not yet:** no algorithm reads weights until Dijkstra does (planned). See ARCHITECTURE.md §2.
+- **Algorithms:** Dijkstra reads weights and finds the cheapest path. BFS, DFS and Bidirectional BFS
+  ignore them, but still report what their path really costs. Editing a weight after a finished run
+  re-solves it live. See ARCHITECTURE.md §2 and §4.

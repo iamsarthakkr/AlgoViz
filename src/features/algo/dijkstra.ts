@@ -1,17 +1,15 @@
 // Authored by - Sarthak Kumar
 //
 // dijkstra: shortest path via a binary min-heap priority queue keyed on distance.
-// NOTE: edge weight is hardcoded to 1 (no weighted terrain cell yet), so this is
-// currently behaviorally equivalent to BFS on grids the UI can produce.
 
 import { CellKind, Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4 } from './utils';
+import { equal, neighbors4, pathCost } from './utils';
 import { min_priority_queue } from '@/store/priority_queue';
 
 const inf = 1e9;
 export const dijkstra: PathFinder = function* (grid) {
-    const { rows, cols, cells, start, goal } = grid;
+    const { rows, cols, cells, weights, start, goal } = grid;
 
     const id = (s: Coord) => s.r * cols + s.c;
     const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
@@ -47,7 +45,7 @@ export const dijkstra: PathFinder = function* (grid) {
         for (const neigh of neighbors4(node)) {
             if (!inb(neigh) || isWall(neigh)) continue;
             const next_id = id(neigh);
-            const w = 1;
+            const w = weights[next_id];
 
             const nd = d + w;
 
@@ -72,5 +70,5 @@ export const dijkstra: PathFinder = function* (grid) {
         path.reverse();
     }
 
-    yield { type: 'path', nodes: path, visited };
+    yield { type: 'path', nodes: path, visited, cost: pathCost(path, grid) };
 };

@@ -6,14 +6,14 @@
 import { Queue } from '@/store/queue';
 import { CellKind, Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4 } from './utils';
+import { equal, neighbors4, pathCost } from './utils';
 
 export const bfs: PathFinder = function* (grid) {
     const { rows, cols, cells, start, goal } = grid;
 
     if (equal(start, goal)) {
         yield { type: 'enqueue', at: start };
-        yield { type: 'path', nodes: [start], visited: 0 };
+        yield { type: 'path', nodes: [start], visited: 0, cost: 0 };
         return;
     }
 
@@ -70,5 +70,5 @@ export const bfs: PathFinder = function* (grid) {
         path.reverse();
     }
 
-    yield { type: 'path', nodes: path, visited };
+    yield { type: 'path', nodes: path, visited, cost: pathCost(path, grid) };
 };

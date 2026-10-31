@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { algoLabels, algoRegistry, algorithmMap } from '@/features/algo';
 import { CellKind } from '@/types/grid';
-import { emptyGrid, expectValidPath, parseGrid, runToPath } from '../../helpers/grid';
+import { WEIGHT_LEVELS } from '@/utils/constants';
+import { costOf, emptyGrid, expectValidPath, parseGrid, referenceCost, runToPath } from '../../helpers/grid';
 import { seedRandom } from '../../helpers/random';
 
 const OPEN = parseGrid([
@@ -18,6 +19,29 @@ const BLOCKED = parseGrid([
     '...#..',
     '...#.G',
 ]);
+
+// the middle row is the short way, and heavy; the top row is longer and cheap
+const WEIGHTED = parseGrid([
+    '......', //
+    'S3333G',
+    '##..##',
+]);
+
+// a seeded mix of walls and weights, with the marker cells plain as in a real snapshot
+function randomWeightedGrid() {
+    const rows = 10;
+    const cols = 14;
+    const grid = emptyGrid(rows, cols, { r: 0, c: 0 }, { r: rows - 1, c: cols - 1 });
+    const last = rows * cols - 1;
+    grid.cells = grid.cells.map((_, i) =>
+        i !== 0 && i !== last && Math.random() < 0.2 ? CellKind.wall : CellKind.empty,
+    );
+    grid.weights = grid.weights.map((w, i) => {
+        if (i === 0 || i === last || grid.cells[i] === CellKind.wall || Math.random() < 0.4) return w;
+        return WEIGHT_LEVELS[Math.floor(Math.random() * WEIGHT_LEVELS.length)];
+    });
+    return grid;
+}
 
 describe('algorithm registry', () => {
     // labels are the keys (dropdown, settings store, algorithmMap): a duplicate would shadow an algorithm
@@ -130,5 +154,48 @@ describe.each(algoRegistry)('$label', (entry) => {
             const { path } = runToPath(algo(grid));
             if (path.nodes.length) expectValidPath(grid, path.nodes);
         }
+    });
+
+    it('reports what its path really costs, on weighted grids too', () => {
+        for (const grid of [OPEN, BLOCKED, WEIGHTED]) {
+            const { path } = runToPath(algo(grid));
+            expect(path.cost).toBe(costOf(grid, path.nodes));
+        }
+    });
+
+    it('costs the number of steps on a plain grid', () => {
+        const { path } = runToPath(algo(OPEN));
+        expect(path.cost).toBe(path.nodes.length - 1);
+    });
+
+    it('costs nothing when there is no path, or the start is the goal', () => {
+        expect(runToPath(algo(BLOCKED)).path.cost).toBe(0);
+        expect(runToPath(algo(emptyGrid(3, 3, { r: 1, c: 1 }, { r: 1, c: 1 }))).path.cost).toBe(0);
+    });
+
+    it('never beats the cheapest possible path on random weighted grids', () => {
+        seedRandom(19);
+        for (let trial = 0; trial < 30; trial++) {
+            const grid = randomWeightedGrid();
+            const { path } = runToPath(algo(grid));
+            if (path.nodes.length) expect(path.cost).toBeGreaterThanOrEqual(referenceCost(grid));
+        }
+    });
+});
+
+// The promise behind `shortest: 'always'`: a new weighted algorithm gets this check by being registered
+describe.each(algoRegistry.filter((e) => e.shortest === 'always'))('$label finds the cheapest path', (entry) => {
+    it('on random weighted grids', () => {
+        seedRandom(23);
+        for (let trial = 0; trial < 40; trial++) {
+            const grid = randomWeightedGrid();
+            const best = referenceCost(grid);
+            const { path } = runToPath(entry.run(grid));
+            expect(path.nodes.length ? path.cost : -1).toBe(best);
+        }
+    });
+
+    it('reads the weights', () => {
+        expect(entry.weighted).toBe(true);
     });
 });

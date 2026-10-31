@@ -41,8 +41,7 @@ export const algoRegistry: readonly AlgoEntry[] = [
         run: dijkstra,
         shortest: 'always',
         weighted: true,
-        description:
-            'Always expands the cheapest cell next. Every step costs the same on this grid, so it behaves like BFS.',
+        description: 'Always expands the cheapest cell next. Finds the cheapest path, even across weighted cells.',
     },
 ];
 

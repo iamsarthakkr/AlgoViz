@@ -31,6 +31,7 @@ export type AlgoController = {
     status: AlgoStatus | undefined; // undefined until the first run is created (idle)
     pathLen: number | undefined;
     visitedApprox: number;
+    pathCost: number | undefined;
 
     clear: Callback;
     play: Callback;
@@ -58,6 +59,7 @@ export function useAlgoController(
     const [status, setStatus] = useState<AlgoStatus>();
     const [pathLen, setPathLen] = useState<number>();
     const [visitedApprox, setVisitedApprox] = useState<number>(0);
+    const [pathCost, setPathCost] = useState<number>();
 
     const runners = useRef(new Map<string, CachedRunner>());
 
@@ -96,6 +98,7 @@ export function useAlgoController(
                 if (event.type === 'path') {
                     sawPathEventRef.current = true;
                     setPathLen(event.nodes.length);
+                    setPathCost(event.cost);
 
                     api.setGridLock(false);
 
@@ -132,6 +135,7 @@ export function useAlgoController(
         }
         setVisitedApprox(0);
         setPathLen(undefined);
+        setPathCost(undefined);
         sawPathEventRef.current = false;
     }, [gridRef]);
 
@@ -272,6 +276,7 @@ export function useAlgoController(
         status,
         pathLen,
         visitedApprox,
+        pathCost,
 
         clear,
         play,

@@ -18,12 +18,13 @@ import { PlaybackControls, Toolbar } from '@/features/Toolbar';
 import { useResponsiveGrid } from '@/features/hooks/useResponsiveGrid';
 import { useAlgoController, useMazeGenerator } from '@/features/animations';
 import { mazes } from '@/features/mazes';
-import { algorithmMap } from '@/features/algo';
+import { algoRegistry, algorithmMap } from '@/features/algo';
 import { Stats } from './Stats';
 import { Legend } from './Legend';
 import { InfoModal } from './InfoModal';
 import { useInfoModal } from '@/features/hooks/useInfoModal';
-import { useSettingsStore } from '@/features/store';
+import { useGridStore, useSettingsStore } from '@/features/store';
+import { DEFAULT_WEIGHT } from '@/utils/constants';
 
 export default function GridPage() {
     const gridRef = useRef<CanvasGridHandle>(null);
@@ -34,6 +35,15 @@ export default function GridPage() {
     });
     const mazeGenerator = useMazeGenerator(mazes);
     const drawTool = useSettingsStore((s) => s.tool);
+
+    const shortest = useSettingsStore((s) => {
+        const currAlgo = s.algoKey;
+        const algo = algoRegistry.find((entry) => entry.label === currAlgo);
+        if (!algo) return null;
+        return algo.shortest;
+    });
+    const selectedAlgo = useSettingsStore((s) => s.algoKey);
+    const gridHasWeights = useGridStore((s) => s.weights.some((w) => w !== DEFAULT_WEIGHT));
 
     useResponsiveGrid(boxRef);
 
@@ -58,9 +68,13 @@ export default function GridPage() {
 
             <Stats
                 algo={algoController.runAlgo}
+                selectedAlgo={selectedAlgo}
                 status={algoController.status}
                 visited={algoController.visitedApprox}
                 pathLen={algoController.pathLen}
+                pathCost={algoController.pathCost}
+                shortest={shortest}
+                gridHasWeights={gridHasWeights}
                 className="[grid-area:stats] p-4"
             />
             <Legend

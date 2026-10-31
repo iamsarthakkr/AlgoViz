@@ -94,6 +94,41 @@ export function referenceDistance(grid: GridSnapShot): number {
     return dist[goal.r * cols + goal.c];
 }
 
+/** What a path really costs: the weight of every cell entered, so every cell but the first. */
+export function costOf(grid: GridSnapShot, nodes: Coord[]): number {
+    return nodes.slice(1).reduce((sum, p) => sum + grid.weights[p.r * grid.cols + p.c], 0);
+}
+
+/** Reference cheapest cost from start to goal; -1 when unreachable. Repeated relaxation, so it shares nothing with dijkstra. */
+export function referenceCost(grid: GridSnapShot): number {
+    const { rows, cols, cells, weights, start, goal } = grid;
+    const dist = new Array(rows * cols).fill(Infinity);
+    dist[start.r * cols + start.c] = 0;
+    for (let changed = true; changed;) {
+        changed = false;
+        for (let k = 0; k < dist.length; k++) {
+            if (dist[k] === Infinity) continue;
+            const u = { r: Math.floor(k / cols), c: k % cols };
+            for (const [dr, dc] of [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ]) {
+                const v = { r: u.r + dr, c: u.c + dc };
+                const next = v.r * cols + v.c;
+                if (!inBounds(grid, v) || cells[next] === CellKind.wall) continue;
+                if (dist[k] + weights[next] < dist[next]) {
+                    dist[next] = dist[k] + weights[next];
+                    changed = true;
+                }
+            }
+        }
+    }
+    const cost = dist[goal.r * cols + goal.c];
+    return cost === Infinity ? -1 : cost;
+}
+
 /** Throws with a readable message unless `nodes` is a walkable start→goal path. */
 export function expectValidPath(grid: GridSnapShot, nodes: Coord[]) {
     const fail = (msg: string) => {
