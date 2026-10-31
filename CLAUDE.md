@@ -121,12 +121,18 @@ the per-file `id`/`inb`/`isWall` helpers and, for mazes, the parallel labels arr
   `mazesLabels` array in `features/mazes/index.ts`; keep both in sync when adding one.
 - Grid coordinates are `{r, c}` (`Coord`), flattened to a 1D index via `r * cols + c`
   everywhere (grid store, algorithms, mazes, painters) — there is no 2D array anywhere.
+- `weights` is a flat array parallel to `cells`: the cost to enter each cell. Walls stay in `cells`
+  (can I enter?), so wall checks don't change. Only plain cells carry weight, and marker cells never
+  count (`getGridSnapshot` normalises them). Take values from `WEIGHT_LEVELS`: the painter only
+  knows those, so another value would count but draw as a plain cell.
+- Store mutators return whether they changed anything. Call `refresh()` only on `true`: a
+  `gridVersion` bump re-solves a finished run.
 - Two canvases are stacked per grid: a **base** layer (cells/walls/markers, redrawn on grid
   state changes) and an **overlay** layer (frontier/visited/path, painted directly and
   imperatively by the runner's event callback, bypassing React re-renders for performance).
 - `gridLock` (in `useGridStore`) is the mechanism that disables pointer editing while an
   algorithm or maze generator is running.
-- One copy of every piece of state. The user's **selections** (algorithm, speed) live only in
+- One copy of every piece of state. The user's **selections** (algorithm, speed, draw tool) live only in
   `useSettingsStore`: the dropdowns write there and `useAlgoController` reads from there, never
   keeping its own copy. A run's **status** comes only from the runner (`onStatusChange`);
   controls never set it. Details in ARCHITECTURE.md §2 and §7.

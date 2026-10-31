@@ -1,7 +1,7 @@
 // Authored by - Sarthak Kumar
 //
-// grid utils: initGrid builds the default grid; nearestEmptyCell is a small BFS used
-// by useGridStore.setStart/setGoal to snap a dragged marker off of a wall cell.
+// grid utils: initGrid builds the default grid; nearestEmptyCell is a small BFS used by
+// useGridStore to snap a marker off of a wall cell (toAvoid keeps the two markers apart).
 
 import { CellKind, Coord, Grid } from '@/types/grid';
 import { CELL_SIZE, COLS, DEFAULT_WEIGHT, ROWS } from './constants';
@@ -22,11 +22,19 @@ export const initGrid = (rows = ROWS, cols = COLS, cellSize = CELL_SIZE): Grid =
         start,
         goal,
         gridLock: false,
+        markersHidden: false,
     };
 };
 
 // tiny bfs around a cell to find nearest empty cell
-export const nearestEmptyCell = (r: number, c: number, rows: number, cols: number, cells: CellKind[]): Coord => {
+export const nearestEmptyCell = (
+    r: number,
+    c: number,
+    rows: number,
+    cols: number,
+    cells: CellKind[],
+    toAvoid: Coord[] = [],
+): Coord => {
     const idx = (rr: number, cc: number) => rr * cols + cc;
     const inb = (rr: number, cc: number) => rr >= 0 && cc >= 0 && rr < rows && cc < cols;
     const q: [number, number][] = [[r, c]];
@@ -39,7 +47,8 @@ export const nearestEmptyCell = (r: number, c: number, rows: number, cols: numbe
     ];
     while (q.length) {
         const [rr, cc] = q.shift()!;
-        if (cells[idx(rr, cc)] !== CellKind.wall) return { r: rr, c: cc };
+        const avoided = toAvoid.some((a) => a.r === rr && a.c === cc);
+        if (!avoided && cells[idx(rr, cc)] !== CellKind.wall) return { r: rr, c: cc };
         for (const [dr, dc] of deltas) {
             const nr = rr + dr,
                 nc = cc + dc,

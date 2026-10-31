@@ -36,8 +36,8 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
     { style, className }: CanvasGridProps,
     ref,
 ) {
-    const [rows, cols, cellSize, cells, weights, start, goal] = useGridStore(
-        useShallow((s) => [s.rows, s.cols, s.cellSize, s.cells, s.weights, s.start, s.goal] as const),
+    const [rows, cols, cellSize, cells, weights, start, goal, markersHidden] = useGridStore(
+        useShallow((s) => [s.rows, s.cols, s.cellSize, s.cells, s.weights, s.start, s.goal, s.markersHidden] as const),
     );
 
     const stageRef = useRef<CanvasStageHandle>(null);
@@ -59,7 +59,6 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
             },
             redrawBase: () => {
                 const ctx = stageRef.current?.getBaseCtx();
-                const api = useGridStore.getState();
                 if (ctx)
                     drawBaseScene({
                         ctx,
@@ -70,12 +69,11 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
                         weights,
                         start,
                         goal,
-                        validStart: api.validStart(),
-                        validGoal: api.validGoal(),
+                        markersHidden,
                     });
             },
         }),
-        [rows, cols, cellSize, cells, weights, start, goal],
+        [rows, cols, cellSize, cells, weights, start, goal, markersHidden],
     );
 
     // animation frames schedule
@@ -83,7 +81,6 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
         const ctx = stageRef.current?.getBaseCtx();
         if (!ctx) return;
         schedule(() => {
-            const api = useGridStore.getState();
             drawBaseScene({
                 ctx,
                 rows,
@@ -93,11 +90,10 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
                 weights,
                 start,
                 goal,
-                validStart: api.validStart(),
-                validGoal: api.validGoal(),
+                markersHidden,
             });
         });
-    }, [rows, cols, cellSize, cells, weights, start, goal, schedule]);
+    }, [rows, cols, cellSize, cells, weights, start, goal, markersHidden, schedule]);
 
     // hit testing
     const hitCell = useCallback(

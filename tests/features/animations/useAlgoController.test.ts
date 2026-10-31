@@ -155,8 +155,8 @@ describe('useAlgoController', () => {
         expect(result.current.pathLen).toBe(0);
     });
 
-    it('does nothing while start or goal is hidden', () => {
-        useGridStore.getState().setStart(-1, -1);
+    it('does nothing while the markers are hidden', () => {
+        useGridStore.getState().hideMarkers();
         const { result } = render();
         act(() => result.current.play());
         expect(result.current.status).toBeUndefined();

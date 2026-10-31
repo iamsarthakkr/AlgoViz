@@ -89,8 +89,6 @@ export function useAlgoController(
                 paintAlgoEvent(ctx, cellSize, event, {
                     start: snap.start,
                     goal: snap.goal,
-                    validStart: api.validStart(),
-                    validGoal: api.validGoal(),
                     drawPathInstant: instant,
                 });
 
@@ -110,15 +108,7 @@ export function useAlgoController(
                             event.nodes,
                             cellSize,
                             opts.pathNps ?? 240,
-                            () =>
-                                drawMarkers(
-                                    ctx,
-                                    snap.start,
-                                    snap.goal,
-                                    api.validStart(),
-                                    api.validGoal(),
-                                    snap.cellSize,
-                                ),
+                            () => drawMarkers(ctx, snap.start, snap.goal, snap.cellSize),
                         );
                     }
                 }

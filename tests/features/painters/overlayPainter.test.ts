@@ -44,22 +44,13 @@ describe('overlayPainter', () => {
         expect(instant.fills.map((f) => f.style)).toEqual(Array(4).fill(lightPalette.pathCell));
     });
 
-    it('redraws markers on top only when both are given and valid', () => {
+    it('redraws markers on top only when both are given', () => {
         const ctx = createMockCtx();
         const markers = { start: { r: 0, c: 0 }, goal: { r: 1, c: 1 } };
-        paintAlgoEvent(
-            ctx,
-            S,
-            { type: 'visit', at: { r: 0, c: 1 } },
-            { ...markers, validStart: true, validGoal: false },
-        );
+        const visit = { type: 'visit', at: { r: 0, c: 1 } } as const;
+        paintAlgoEvent(ctx, S, visit, { start: markers.start });
         expect(ctx.stroke).not.toHaveBeenCalled();
-        paintAlgoEvent(
-            ctx,
-            S,
-            { type: 'visit', at: { r: 0, c: 1 } },
-            { ...markers, validStart: true, validGoal: true },
-        );
+        paintAlgoEvent(ctx, S, visit, markers);
         expect(ctx.strokeStyles).toEqual([lightPalette.start, lightPalette.goal]);
     });
 

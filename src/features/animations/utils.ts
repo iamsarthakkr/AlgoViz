@@ -1,7 +1,7 @@
 // Authored by - Sarthak Kumar
 //
 // getGridSnapshot: freezes a plain-data copy of the current grid for an algorithm run.
-// Returns null if start/goal aren't valid, which is what silently no-ops Visualize/Step.
+// Returns null while the markers are hidden (a maze is generating), which silently no-ops Visualize/Step.
 // Both marker cells get DEFAULT_WEIGHT in the copy: their weights can't change the route (no path
 // enters the start, every path enters the goal once), and doing it here spares every algorithm a special case.
 
@@ -11,7 +11,7 @@ import { DEFAULT_WEIGHT } from '@/utils/constants';
 
 export const getGridSnapshot = (): GridSnapShot | null => {
     const state = useGridStore.getState();
-    if (!state.validStart() || !state.validGoal()) return null;
+    if (state.markersHidden) return null;
 
     const start = { ...state.start };
     const goal = { ...state.goal };

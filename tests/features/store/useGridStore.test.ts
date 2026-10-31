@@ -20,8 +20,7 @@ describe('useGridStore', () => {
     it('starts with the default grid', () => {
         expect(api().rows).toBe(ROWS);
         expect(api().cols).toBe(COLS);
-        expect(api().validStart()).toBe(true);
-        expect(api().validGoal()).toBe(true);
+        expect(api().markersHidden).toBe(false);
     });
 
     it('idx / inBounds / at use row-major indexing', () => {
@@ -256,11 +255,11 @@ describe('useGridStore', () => {
             expect(track(() => api().setGoal(start.r, start.c))).toEqual(noop);
         });
 
-        it('hiding a marker changes once; hiding it again is a no-op', () => {
-            expect(track(() => api().setStart(-1, -1))).toEqual(changed);
-            expect(track(() => api().setStart(-1, -1))).toEqual(noop);
-            expect(track(() => api().setGoal(-1, -1))).toEqual(changed);
-            expect(track(() => api().setGoal(-1, -1))).toEqual(noop);
+        it('hideMarkers / showMarkers', () => {
+            expect(track(() => api().showMarkers())).toEqual(noop); // already shown
+            expect(track(() => api().hideMarkers())).toEqual(changed);
+            expect(track(() => api().hideMarkers())).toEqual(noop);
+            expect(track(() => api().showMarkers())).toEqual(changed);
         });
     });
 
@@ -304,15 +303,24 @@ describe('useGridStore', () => {
         // in the first column (pointer capture keeps sending moves, hitCell gives r = -1) made it vanish
         it('clamps a drag above the top edge in the first column instead of hiding the marker', () => {
             api().setStart(-1, 0);
-            expect(api().validStart()).toBe(true);
             expect(api().start).toEqual({ r: 0, c: 0 });
         });
 
-        it('(-1, -1) hides the marker, which makes it invalid', () => {
+        // moving and hiding are separate actions now, so no coordinate can hide a marker
+        it('off-grid coordinates always clamp', () => {
             api().setStart(-1, -1);
-            api().setGoal(-1, -1);
-            expect(api().validStart()).toBe(false);
-            expect(api().validGoal()).toBe(false);
+            expect(api().start).toEqual({ r: 0, c: 0 });
+            expect(api().markersHidden).toBe(false);
+        });
+
+        it('hiding keeps the positions, so showing restores them', () => {
+            const { start, goal } = api();
+            api().hideMarkers();
+            expect(api().markersHidden).toBe(true);
+            expect(api()).toMatchObject({ start, goal });
+            api().showMarkers();
+            expect(api().markersHidden).toBe(false);
+            expect(api()).toMatchObject({ start, goal });
         });
     });
 

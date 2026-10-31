@@ -2,7 +2,8 @@
 //
 // useMazeGenerator: orchestrates maze generation playback.
 // - Unlike useAlgoController, events write directly into useGridStore (walls ARE grid state)
-// - Hides start/goal + locks the grid for the run, restores/re-snaps them on the `done` event
+// - Hides start/goal + locks the grid for the run, shows them again (re-snapped) on the `done` event
+// - A maze starts from a fresh board: fill-wall and clear-wall both leave no weights behind
 // - Always autoplays; no pause/step controls are exposed for maze generation
 
 import { useCallback, useRef, useState } from 'react';
@@ -47,19 +48,15 @@ export function useMazeGenerator(registry: MazeGeneratorRegistry, opts: Options 
             if (!snap) return null;
 
             const gridApi = useGridStore.getState();
-            const start = { ...gridApi.start };
-            const goal = { ...gridApi.goal };
 
             // block updates to grid
             gridApi.setGridLock(true);
-            // remove start and goal
-            gridApi.setStart(-1, -1);
-            gridApi.setGoal(-1, -1);
+            gridApi.hideMarkers();
 
             clearnupRef.current = () => {
                 // set back start and goal
-                useGridStore.getState().setStart(start.r, start.c);
-                useGridStore.getState().setGoal(goal.r, goal.c);
+                gridApi.showMarkers();
+
                 // enable updates on grid
                 useGridStore.getState().setGridLock(false);
                 useGridStore.getState().refresh();
@@ -76,6 +73,7 @@ export function useMazeGenerator(registry: MazeGeneratorRegistry, opts: Options 
                             break;
                         case 'clear-wall':
                             gridApi.clearWalls();
+                            gridApi.clearWeights();
                             break;
                         case 'carve':
                             gridApi.clearWall(event.at.r, event.at.c);

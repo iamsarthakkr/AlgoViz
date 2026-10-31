@@ -225,10 +225,10 @@ describe('Grid page', () => {
             expect(useGridStore.getState().gridLock).toBe(true);
 
             act(() => void raf.flush());
-            const { cells, gridLock, validStart, validGoal } = useGridStore.getState();
+            const { cells, gridLock, markersHidden } = useGridStore.getState();
             expect(gridLock).toBe(false);
             expect(cells).toContain(CellKind.wall);
-            expect(validStart() && validGoal()).toBe(true);
+            expect(markersHidden).toBe(false);
         });
     });
 });

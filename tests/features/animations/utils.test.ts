@@ -32,12 +32,11 @@ describe('getGridSnapshot', () => {
         expect(snap.start).not.toEqual({ r: 0, c: 3 });
     });
 
-    it('returns null while start or goal is hidden (e.g. during maze generation)', () => {
-        useGridStore.getState().setStart(-1, -1);
+    it('returns null while the markers are hidden (during maze generation)', () => {
+        useGridStore.getState().hideMarkers();
         expect(getGridSnapshot()).toBeNull();
-        useGridStore.getState().reset();
-        useGridStore.getState().setGoal(-1, -1);
-        expect(getGridSnapshot()).toBeNull();
+        useGridStore.getState().showMarkers();
+        expect(getGridSnapshot()).not.toBeNull();
     });
 
     // A marker's weight never matters for the route (no path enters the start; every path enters the

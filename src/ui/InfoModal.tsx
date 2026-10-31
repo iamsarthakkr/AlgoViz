@@ -47,10 +47,11 @@ const SLIDES: Slide[] = [
         body: (
             <ul className="space-y-2.5">
                 <li>
-                    <b>Draw walls:</b> drag on the grid.
+                    <b>Draw:</b> pick Wall or a weight in the legend, then drag on the grid. Weighted cells cost more to
+                    cross.
                 </li>
                 <li>
-                    <b>Erase:</b> start a drag on a wall, or drag with right-click or Alt held.
+                    <b>Erase:</b> start a drag on a cell that matches your tool, or drag with right-click or Alt held.
                 </li>
                 <li>
                     <b>Move start / goal:</b> drag <StartMark /> or <GoalMark />.

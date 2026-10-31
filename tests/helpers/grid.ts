@@ -28,13 +28,33 @@ export function parseGrid(picture: string[]): GridSnapShot {
     });
     if (!start || !goal) throw new Error('picture needs both S and G');
 
-    return { gridVersion: 0, rows, cols, cellSize: 10, cells, weights, start, goal, gridLock: false };
+    return {
+        gridVersion: 0,
+        rows,
+        cols,
+        cellSize: 10,
+        cells,
+        weights,
+        start,
+        goal,
+        gridLock: false,
+    };
 }
 
 export function emptyGrid(rows: number, cols: number, start: Coord, goal: Coord): GridSnapShot {
     const cells: CellKind[] = Array(rows * cols).fill(CellKind.empty);
     const weights: number[] = Array(rows * cols).fill(DEFAULT_WEIGHT);
-    return { gridVersion: 0, rows, cols, cellSize: 10, cells, weights, start, goal, gridLock: false };
+    return {
+        gridVersion: 0,
+        rows,
+        cols,
+        cellSize: 10,
+        cells,
+        weights,
+        start,
+        goal,
+        gridLock: false,
+    };
 }
 
 export function collect<T>(gen: Generator<T, void, void>): T[] {

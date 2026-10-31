@@ -5,15 +5,15 @@ What the app does today, ordered core-first. For _how_ each is implemented in de
 
 ## 1. Interactive wall-painting grid
 
-The core surface: a canvas grid (`features/CanvasGrid`) of empty/wall cells. Dragging (mouse,
-touch or pen) paints walls; a drag that **starts on a wall** erases instead, which is how touch
-users erase. Right-click-drag or Alt+drag also erases. The brush is chosen once per drag, so a
-single drag either draws or erases every cell it crosses, never a mix.
+The core surface: a canvas grid (`features/CanvasGrid`) of empty, wall and weighted cells (§9).
+Dragging (mouse, touch or pen) paints with the tool picked in the legend; a drag that **starts on
+a matching cell** erases instead, which is how touch users erase. Right-click-drag or Alt+drag also
+erases. The choice is made once per drag, so a single drag either draws or erases every cell it
+crosses, never a mix.
 
 - Implementation: `CanvasGrid.tsx`'s pointer handlers (`onPointerDown/Move/Up`) compute the
-  hit cell from client coordinates, choose a `Brush` (`Wall`/`Erase`) from the starting cell
-  and the mouse button/modifier key, and write into `useGridStore` via `setCell` + a batched
-  `refresh()`.
+  hit cell from client coordinates, choose `Paint` or `Erase` from the tool, the starting cell
+  and the mouse button/modifier key, and write into `useGridStore`, refreshing only on real changes.
 - Interacts with: the base canvas layer redraws via `drawBaseScene` any time grid state
   changes; a running algorithm locks the grid (`gridLock`) so painting is disabled mid-run.
 
@@ -28,8 +28,8 @@ be dropped on top of the other marker.
   machine; snapping logic lives in `useGridStore.setStart`/`setGoal` calling
   `utils/grid.ts:nearestEmptyCell`.
 - Interacts with: algorithms won't run without both markers present on non-wall cells
-  (`getGridSnapshot` returns `null` if `validStart()`/`validGoal()` fail, which silently
-  no-ops Visualize/Step); maze generation temporarily hides both markers (see §4) and restores
+  (`getGridSnapshot` returns `null` while `markersHidden` is set, which silently no-ops
+  Visualize/Step); maze generation temporarily hides both markers (see §4) and restores
   them afterward, re-snapping if the maze happened to wall over their old position.
 
 ## 3. Pathfinding algorithms (Visualize / Step / Pause / Skip-to-end / Clear)
@@ -159,9 +159,11 @@ chosen from the screen.
   size. If the box is too small even for 12px cells, the grid scrolls instead of shrinking.
 - **Touch:** dragging on the grid paints instead of scrolling the page (`touch-action: none`),
   controls are at least 44px tall, and the bottom bar clears the iPhone home bar.
-- **Legend**: a swatch per item (Start, Goal, Wall, Frontier, Visited, Path) drawn with the
-  grid's own painters and palette, so it always matches the grid (visited is drawn over
-  frontier, as on the grid). Wrapping row on phones, a column on desktop.
+- **Legend**: the **draw palette** (Wall and the weight levels, as toggle buttons) and the **key**
+  (Start, Goal, Frontier, Visited, Path). Every swatch is drawn with the grid's own painters and
+  palette, so it always matches the grid (visited is drawn over frontier, as on the grid). Rows on
+  phones with short labels (×2), a column on desktop. The selected tool is shown with a ring, which
+  takes no space, so selecting can't resize the phone's legend row or the grid.
 - **Stats**: one row of label-over-value cells on phones, a column on desktop (see §5).
 
 ## 8. Info dialog ("About AlgoViz")
@@ -180,3 +182,18 @@ jump to a slide, and the ← / → keys page through it; it always opens on the 
   so a new algorithm shows up there automatically (a test checks every entry has a description).
 - Implementation: generic shell `components/Modal.tsx`, content `ui/InfoModal.tsx`, state
   `features/hooks/useInfoModal.ts`.
+
+## 9. Weighted cells
+
+Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5, Heavy ×10,
+`WEIGHT_LEVELS`) and drag on the grid; a plain cell costs 1 (`DEFAULT_WEIGHT`).
+
+- **Editing:** a drag that starts on the same level erases weights, and one that starts on a
+  different level paints over it, so changing a level takes one drag. Right-click or Alt erases.
+  The weight tool skips walls; the wall tool paints over terrain and removes its weight.
+- **Drawing:** a tint per level, plus 1-3 dots on cells of at least 16px so the level doesn't rely
+  on colour alone.
+- **Rules:** the cost is paid on entering a cell. Only plain cells carry weight: a wall never has
+  one, and the start and goal cells never count. A marker dragged across terrain doesn't damage it.
+- **Mazes** start from a fresh board, so generating one removes all weights.
+- **Not yet:** no algorithm reads weights until Dijkstra does (planned). See ARCHITECTURE.md §2.

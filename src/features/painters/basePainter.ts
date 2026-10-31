@@ -50,16 +50,9 @@ export function drawGoalMarker(ctx: CanvasRenderingContext2D, p: Coord, s: numbe
     ctx.stroke();
 }
 
-export function drawMarkers(
-    ctx: CanvasRenderingContext2D,
-    start: Coord,
-    goal: Coord,
-    validStart: boolean,
-    validGoal: boolean,
-    cellSize: number,
-) {
-    if (validStart) drawStartMarker(ctx, start, cellSize);
-    if (validGoal) drawGoalMarker(ctx, goal, cellSize);
+export function drawMarkers(ctx: CanvasRenderingContext2D, start: Coord, goal: Coord, cellSize: number) {
+    drawStartMarker(ctx, start, cellSize);
+    drawGoalMarker(ctx, goal, cellSize);
 }
 
 function drawGridLines(
@@ -116,8 +109,7 @@ type Scene = {
     weights: number[];
     start: Coord;
     goal: Coord;
-    validStart: boolean;
-    validGoal: boolean;
+    markersHidden: boolean;
 };
 
 // exported for the legend's weight swatches, so they match the grid
@@ -137,7 +129,7 @@ export function drawWeightDots(ctx: CanvasRenderingContext2D, p: Coord, cellSize
 
 // draws base grid with grid lines, cells and markers
 export function drawBaseScene(scene: Scene) {
-    const { ctx, rows, cols, cellSize, cells, weights, start, goal, validStart, validGoal } = scene;
+    const { ctx, rows, cols, cellSize, cells, weights, start, goal, markersHidden } = scene;
     // background
     ctx.fillStyle = palette.background;
     ctx.fillRect(0, 0, cols * cellSize, rows * cellSize);
@@ -182,5 +174,5 @@ export function drawBaseScene(scene: Scene) {
     ctx.strokeRect(0, 0, cols * cellSize, rows * cellSize);
 
     // markers
-    drawMarkers(ctx, start, goal, validStart, validGoal, cellSize);
+    if (!markersHidden) drawMarkers(ctx, start, goal, cellSize);
 }

@@ -43,7 +43,9 @@ export const useGridStore = create<GridState>((set, get) => {
         setWall: (r, c) => {
             const s = get();
             if (!s.inBounds(r, c)) return false;
-            if ((s.start.r === r && s.start.c === c) || (s.goal.r === r && s.goal.c === c)) return false;
+            if (!s.markersHidden && ((s.start.r === r && s.start.c === c) || (s.goal.r === r && s.goal.c === c))) {
+                return false;
+            }
             const id = s.idx(r, c);
             if (s.cells[id] === CellKind.wall) return false;
 
@@ -125,11 +127,6 @@ export const useGridStore = create<GridState>((set, get) => {
 
         setStart: (r, c) => {
             const s = get();
-            if (r < 0 && c < 0) {
-                if (!s.validStart()) return false;
-                set({ start: { r: -1, c: -1 } });
-                return true;
-            }
             r = clamp(r, 0, s.rows - 1);
             c = clamp(c, 0, s.cols - 1);
             const snapped = nearestEmptyCell(r, c, s.rows, s.cols, s.cells);
@@ -142,12 +139,6 @@ export const useGridStore = create<GridState>((set, get) => {
 
         setGoal: (r, c) => {
             const s = get();
-            if (r < 0 && c < 0) {
-                if (!s.validGoal()) return false;
-                set({ goal: { r: -1, c: -1 } });
-                return true;
-            }
-
             r = clamp(r, 0, s.rows - 1);
             c = clamp(c, 0, s.cols - 1);
             const snapped = nearestEmptyCell(r, c, s.rows, s.cols, s.cells);
@@ -158,13 +149,20 @@ export const useGridStore = create<GridState>((set, get) => {
             return true;
         },
 
-        validStart: () => {
+        hideMarkers: () => {
             const s = get();
-            return s.inBounds(s.start.r, s.start.c);
+            if (s.markersHidden) return false;
+            set({ markersHidden: true });
+            return true;
         },
-        validGoal: () => {
+
+        showMarkers: () => {
             const s = get();
-            return s.inBounds(s.goal.r, s.goal.c);
+            if (!s.markersHidden) return false;
+            const start = nearestEmptyCell(s.start.r, s.start.c, s.rows, s.cols, s.cells);
+            const goal = nearestEmptyCell(s.goal.r, s.goal.c, s.rows, s.cols, s.cells, [start]);
+            set({ markersHidden: false, start, goal });
+            return true;
         },
 
         reset: (rows, cols, cellSize) =>

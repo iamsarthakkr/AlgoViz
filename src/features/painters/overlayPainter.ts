@@ -76,8 +76,6 @@ export function paintAlgoEvent(
     opts?: {
         start?: Coord;
         goal?: Coord;
-        validStart?: boolean;
-        validGoal?: boolean;
         drawPathInstant?: boolean;
     },
 ) {
@@ -93,7 +91,7 @@ export function paintAlgoEvent(
             break;
     }
 
-    if (opts?.start && opts?.goal && opts.validStart && opts.validGoal) {
-        drawMarkers(ctx, opts.start, opts.goal, opts.validStart, opts.validGoal, cellSize);
+    if (opts?.start && opts?.goal) {
+        drawMarkers(ctx, opts.start, opts.goal, cellSize);
     }
 }

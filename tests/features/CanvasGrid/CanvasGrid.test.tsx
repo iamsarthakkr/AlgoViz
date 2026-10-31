@@ -280,16 +280,13 @@ describe('CanvasGrid', () => {
         expect(api().cells.every((k) => k === CellKind.empty)).toBe(true);
     });
 
-    // BUG: setStart/setGoal treat any (r < 0, c < 0) as the "hide marker" sentinel. Pointer capture keeps
-    // sending moves past the canvas, and hitCell returns negative coords there, so dragging a marker
-    // beyond the top-left corner hides it, and Visualize silently does nothing.
-    // Fix: give the maze generator its own hideMarkers()/restore so setStart/setGoal always clamp.
-    it.fails('dragging a marker past the top-left corner clamps it to the corner', () => {
+    // regression: negative coords used to mean "hide the marker". Pointer capture keeps sending moves
+    // past the canvas, so dragging a marker beyond the corner made it vanish
+    it('dragging a marker past the top-left corner clamps it to the corner', () => {
         const { start } = api();
         const { surface, at } = setup();
         fireEvent.pointerDown(surface, at(start.r, start.c));
         fireEvent.pointerMove(surface, at(-1, -1));
-        expect(api().validStart()).toBe(true);
         expect(api().start).toEqual({ r: 0, c: 0 });
     });
 

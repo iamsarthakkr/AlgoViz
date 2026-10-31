@@ -103,28 +103,40 @@ type Grid = {
     cols;
     cellSize: number;
     cells: CellKind[]; // flat array, index = r*cols+c, CellKind.empty | CellKind.wall
+    weights: number[]; // parallel flat array: the cost to ENTER each cell, DEFAULT_WEIGHT = plain
     start;
-    goal: Coord; // {r:-1,c:-1} is the sentinel for "removed" (used during maze gen)
+    goal: Coord;
     gridLock: boolean; // true while an algorithm/maze run owns the grid
+    markersHidden: boolean; // true while a maze generates; start/goal keep their coordinates
 };
 ```
 
-Plus derived helpers (`idx`, `inBounds`, `at`, `validStart`, `validGoal`) and mutators
-(`setCell`, `clearWalls`, `fillWalls`, `setStart`, `setGoal`, `setGridLock`, `refresh`, `reset`,
+Plus derived helpers (`idx`, `inBounds`, `at`, `weightAt`) and mutators
+(`setWall`, `clearWall`, `clearWalls`, `fillWalls`, `setWeight`, `clearWeight`, `clearWeights`,
+`setStart`, `setGoal`, `hideMarkers`, `showMarkers`, `setGridLock`, `refresh`, `reset`,
 `resize`).
 
 Key behaviors baked into the mutators:
 
-- `setCell` refuses to overwrite the start/goal cell, and no-ops if the value is unchanged
-  (so `refresh()`/re-renders aren't triggered for redundant paints).
+- Mutators return whether they changed anything and skip `set` when they didn't. `setWall` and
+  `setWeight` refuse the start/goal cell. Callers `refresh()` only on `true`: a `gridVersion` bump
+  re-solves a finished run, and `pointermove` fires many times per cell.
 - `setStart`/`setGoal` **snap** to the nearest non-wall cell via a small BFS
   (`utils/grid.ts:nearestEmptyCell`) whenever the target cell would land on a wall, and
   refuse the move if it would collide with the other marker.
-- `setStart(-1,-1)` / `setGoal(-1,-1)` (negative coords) is the "no marker" sentinel used by
-  `useMazeGenerator` to hide start/goal while carving.
+- `hideMarkers()` / `showMarkers()` hide start/goal while a maze generates. Moving and hiding are
+  separate, so an off-grid drag always clamps. While hidden, `setWall` may wall over the markers'
+  cells; `showMarkers` re-snaps both off any walls, keeping them apart (`nearestEmptyCell`'s `toAvoid`).
+- **Only plain cells carry weight.** Walls and weights are separate arrays because they answer
+  different questions (can I enter? what does it cost?), so wall checks everywhere stay unchanged.
+  `setWall`/`fillWalls` reset the weight and `setWeight` refuses walls, markers and anything below
+  `DEFAULT_WEIGHT` (A\* will assume every step costs at least that). A marker dropped on terrain
+  keeps the stored weight, so the terrain is back when it moves on. It never counts: no path enters
+  the start, every path enters the goal once, so `getGridSnapshot` sets both to the default in its
+  copy and the painter draws them plain. `clearWalls` keeps weights for a future "Clear walls".
 - `refresh()` is the manual dirty flag — most mutators (all but `reset`/`resize`) don't bump `gridVersion` themselves;
-  callers (`CanvasGrid`'s pointer handlers) call `api.refresh()` after a batch of `setCell`
-  calls so a drag-paint doesn't trigger one version bump per cell.
+  callers (`CanvasGrid`'s pointer handlers) call `api.refresh()` once per real change, and
+  mazes once at the end, so a maze doesn't bump the version per cell.
 - `reset(rows?, cols?, cellSize?)` builds a fresh empty grid via `initGrid` (start/goal re-placed
   for the new size; no arguments = the `utils/constants.ts` defaults). It **bumps** `gridVersion`
   rather than restarting at 0: runners are cached by the version they were built from, so a
@@ -134,16 +146,17 @@ Key behaviors baked into the mutators:
   repainted at the new size, and is a no-op when the clamped size equals the current one.
   Rows/cols are only ever chosen by `reset`; the grid dimensions are not user-configurable.
 
-`GridSnapShot` (= `Grid`, no methods) is what gets handed to algorithms/mazes — a frozen,
+`GridSnapShot` (= `Grid` without `markersHidden`, no methods) is what gets handed to algorithms/mazes — a frozen,
 plain-data copy so a generator's view of the grid can't be mutated mid-run by further
 pointer input (see §4).
 
 ### `useSettingsStore` (`features/store/useSettingsStore.ts`) — UI/session state
 
-The user's selections: `algoKey` and `speed` (`'slow'|'medium'|'fast'`). This is the **only**
-copy: the dropdowns write here and nothing else, and `useAlgoController` reads from here (the
-speed preset live, converted via `utils/settings.ts:speedToEPS`; the algorithm with
-`getState()` when a run starts, see §7). Keeping one copy means the two can't drift apart. The
+The user's selections: `algoKey`, `speed` (`'slow'|'medium'|'fast'`) and `tool` (`DrawTool`: Wall
+or a weight level). This is the **only** copy: the pickers write here and nothing else.
+`useAlgoController` reads from here (the speed preset live, converted via
+`utils/settings.ts:speedToEPS`; the algorithm with `getState()` when a run starts, see §7), and
+`CanvasGrid` reads the tool when a drag starts (§9). Keeping one copy means the two can't drift apart. The
 maze dropdown is an action menu (picking a maze generates it now), so no maze key is stored.
 
 ### State that intentionally lives outside Zustand
@@ -156,7 +169,7 @@ across renders without forcing re-renders:
   run; it never holds more than one, see §7), `currentAlgoRef` (the active run's key, for
   synchronous reads in callbacks), `cancelPathAnimRef`, `sawPathEventRef`, `speedRef`.
 - `useMazeGenerator`: `runnerRef`, a cleanup closure ref that restores start/goal.
-- `CanvasGrid`: `dragMode` (paint / move-start / move-goal), `brushRef` (wall vs erase).
+- `CanvasGrid`: `dragModeRef` (paint / erase / move-start / move-goal), fixed once per drag.
 - `useInfoModal` (`features/hooks/`): the info dialog's `open` state, owned by `GridPage` and
   shared by the toolbar's button and `InfoModal`. Its initial value comes from `localStorage`
   (`algoviz:info-seen`): the dialog opens on a first visit and is marked seen when it is closed.
@@ -186,7 +199,8 @@ absolutely positioned on top) — and exposes both contexts via `useImperativeHa
 `features/CanvasGrid/CanvasGrid.tsx` owns a `CanvasStage` and is the thing everything else
 talks to:
 
-- Subscribes to `useGridStore` with `useShallow` for `[rows, cols, cellSize, cells, start, goal]`.
+- Subscribes to `useGridStore` with `useShallow` for `[rows, cols, cellSize, cells, weights, start,
+goal, markersHidden]`.
 - One `useEffect`, debounced through `useRaf()` (coalesces multiple state changes within one
   animation frame into a single draw call), redraws the **base** layer via
   `painters.drawBaseScene(...)` whenever grid data changes. It does **not** touch the overlay:
@@ -199,19 +213,24 @@ talks to:
 
 ### Painters (`features/painters/`) — pure drawing functions, no state
 
-- `basePainter.ts`: `drawBaseScene` = clear+fill background → paint every cell (wall/empty
-  color, with a 0.25px overdraw fudge to avoid antialiasing seams between adjacent same-kind
-  cells) → `drawGridLines` (skips the line segment between two adjacent wall cells, so wall
-  blocks render as solid contiguous shapes) → outer border → `drawMarkers` (start = arrow
-  glyph, goal = ringed dot). `drawStartMarker`/`drawGoalMarker` are exported on their own too:
-  the legend draws its Start/Goal swatches with them, so the legend can't drift from the grid.
+- `basePainter.ts`: `drawBaseScene(scene)` takes one scene object = clear+fill background → paint
+  every cell (wall, weight tint or empty color, with a 0.25px overdraw fudge to avoid antialiasing
+  seams between adjacent same-kind cells; marker cells are always plain) → `drawGridLines` (skips
+  the line segment between two adjacent wall cells, so wall blocks render as solid contiguous
+  shapes) → weight dots → outer border → `drawMarkers` unless hidden (start = arrow glyph, goal =
+  ringed dot). The 1-3 dots (`drawWeightDots`) make the level readable without colour; they are
+  skipped below `WEIGHT_DOTS_MIN_CELL` (16px), where they'd be noise. `drawStartMarker`,
+  `drawGoalMarker` and `drawWeightDots` are exported on their own too: the legend draws its swatches
+  with them, so the legend can't drift from the grid.
 - `overlayPainter.ts`: `paintAlgoEvent` switches on `AlgoEvent.type` and fills one cell
   (`frontier` color for `enqueue`, `visited` color for `visit`); `path` events are only
   instant-painted if `drawPathInstant` is passed (otherwise the runner leaves it to
   `animateFinalPath`). `animateFinalPath` runs its **own independent rAF loop** (not the
   generator runner) that fills `nps` (nodes-per-second, default 240) path cells per second
   until done, returning a cancel function. `clearOverlay` is a plain `ctx.clearRect`.
-- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`. **`darkPalette` is
+- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`, including `weights` (one tint
+  per `WEIGHT_LEVELS` entry, same order) and `weightMark` (the dots). `weightLevel(w)` and
+  `weightColor(w)` turn a stored weight into its level index and tint. **`darkPalette` is
   currently identical to `lightPalette`**, and both painter modules hardcode
   `import { lightPalette as palette }` — there is no theme-switching logic anywhere in the
   app despite the two-palette scaffold.
@@ -377,42 +396,47 @@ state (walls), not an overlay.
 Sequence on `generate(key)`:
 
 1. Pause/discard any previous maze runner + pending cleanup closure.
-2. Snapshot current start/goal, then **remove markers** (`setStart(-1,-1)`, `setGoal(-1,-1)`)
-   and **lock the grid** — this both hides the markers during carving and stops the player
-   from painting walls mid-generation.
+2. **Hide the markers** (`hideMarkers()`) and **lock the grid** — this both hides the markers
+   during carving and stops the player from painting walls mid-generation.
 3. Build the generator from `(rows, cols)` and wrap it in `createRunner`, whose `onEvent`
-   applies `fillWalls`/`clearWalls`/`setCell(..., wall|empty)` directly for each event type.
-4. On the generator's `done` event, run the stored cleanup closure: restore the original
-   start/goal coordinates (re-snapped through `setStart`/`setGoal`'s nearest-empty-cell logic
-   if the maze happened to wall over them), unlock the grid, and `refresh()`.
+   applies `fillWalls`/`clearWalls`/`setWall`/`clearWall` directly for each event type. A maze is a
+   fresh board: `fill-wall` drops weights by itself, and `clear-wall` also calls `clearWeights`
+   (the store's `clearWalls` keeps terrain on purpose).
+4. On the generator's `done` event, run the stored cleanup closure: `showMarkers()` (re-snapped
+   if the maze walled over them), unlock the grid, and `refresh()`.
 5. `runnerRef.current.play()` — maze generation always autoplays (no pause/step controls are
    wired to it from the toolbar; `AlgoPickers.onGenerateMaze` also calls
    `algoController.clear()` first so a stale path overlay doesn't linger under the new maze).
 
 ## 9. Pointer interaction (`CanvasGrid`)
 
-Single-pointer state machine via `DragMode` (`None | Paint | MoveStart | MoveGoal`), driven
+Single-pointer state machine via `DragMode` (`None | Paint | Erase | MoveStart | MoveGoal`), driven
 by native Pointer Events (`onPointerDown/Move/Up/Leave/Cancel`) with `setPointerCapture` so drags
 tracked outside the canvas bounds still deliver move events.
 
 - `hitCell(e)`: converts client coords to `{r,c}` via the wrapper's bounding rect and
   `cellSize` (no rounding/clamping to grid bounds — out-of-range is filtered by `paintAt`).
+- **Tool vs drag mode:** the tool (`DrawTool`, picked in the legend) says which layer a drag edits;
+  the drag mode says whether it paints or erases that layer. Both are fixed at pointer down, so one
+  drag never mixes the two.
 - `onPointerDown`: no-ops if `gridLock`. If the hit cell is the start or goal marker, enters
-  `MoveStart`/`MoveGoal` drag mode. Otherwise enters `Paint` mode, choosing the brush once
-  for the whole drag: `Erase` if the drag starts on a wall (so touch, with no right button or
-  Alt, can erase), or with the right mouse button or Alt held; else `Wall`. Then paints
-  immediately. The start cell is bounds-checked first: cells are a flat array, so an
-  out-of-range column would read the next row's cell.
-- `onPointerMove`: continues painting or dragging the active marker per `dragMode`, calling
-  `api.refresh()` after every move to bump `gridVersion` (this is what invalidates cached
-  algorithm runners live, mid-drag).
-- `onPointerUp`/`onPointerLeave`/`onPointerCancel`: releases pointer capture, resets `dragMode`
+  `MoveStart`/`MoveGoal` drag mode. Otherwise it picks `Erase` if the right mouse button or Alt is
+  held or the starting cell matches the tool (a wall for the wall tool, the **same level** for the
+  weight tool, so a different level is painted over rather than erased), else `Paint`. This is also
+  how touch erases, with no right button or Alt. Then paints immediately. The start cell is
+  bounds-checked first: cells are a flat array, so an out-of-range column would read the next row's
+  cell.
+- `onPointerMove`: continues painting or dragging the active marker per the drag mode, and calls
+  `api.refresh()` only if a cell or marker actually changed. A `gridVersion` bump invalidates
+  runners and re-solves a finished run, and `pointermove` fires many times per cell.
+- `onPointerUp`/`onPointerLeave`/`onPointerCancel`: releases pointer capture, resets the drag mode
   to `None` (cancel: the browser or OS took over the gesture, so no `pointerup` will follow).
 - The wrapper sets `touch-action: none`, so a touch drag paints instead of scrolling the page.
-- `paintAt`: guards bounds and refuses to paint over the start/goal cell; no-ops if the cell
-  is already the target kind (avoids redundant store writes during a drag).
+- `paintAt`: guards bounds and refuses to paint over the start/goal cell, then routes by tool and
+  drag mode to `setWall`/`clearWall`/`setWeight`/`clearWeight`, returning whether anything changed.
+  The wall tool paints over terrain (dropping its weight); the weight tool skips walls.
 - Right-click context menu is suppressed (`onContextMenu` → `preventDefault`) since
-  right-click is repurposed as the erase-brush trigger.
+  right-click is repurposed as an erase trigger.
 
 ## 10. End-to-end flow: clicking "Visualize"
 
@@ -441,7 +465,7 @@ tracked outside the canvas bounds still deliver move events.
 
 Changing the grid after a run started: pointer edits are blocked while running (`gridLock`),
 so this happens through edits while paused or finished, or a resize (which can happen mid-run).
-Any `setCell`/`setStart`/`setGoal` + `refresh()`, or `resize`, bumps `gridVersion`. The
+Any wall, weight or marker edit + `refresh()`, or `resize`, bumps `gridVersion`. The
 controller's `useEffect` on `gridVersion` rebuilds the active run from the new snapshot — if the
 prior run had already reached `done`, the rebuild is instantly skipped-to-end so the corrected
 path reappears without user action; otherwise it is left at `initial` status (press Visualize

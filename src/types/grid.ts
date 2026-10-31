@@ -33,6 +33,7 @@ export type Grid = {
     start: Coord;
     goal: Coord;
     gridLock: boolean;
+    markersHidden: boolean;
 };
 
 export type GridState = Grid & {
@@ -52,9 +53,8 @@ export type GridState = Grid & {
 
     setStart(r: number, c: number): boolean;
     setGoal(r: number, c: number): boolean;
-
-    validStart(): boolean;
-    validGoal(): boolean;
+    hideMarkers(): boolean;
+    showMarkers(): boolean;
 
     setGridLock(flag: boolean): void;
 
@@ -63,6 +63,6 @@ export type GridState = Grid & {
     resize(cellSize: number): void;
 };
 
-export type GridSnapShot = Grid;
+export type GridSnapShot = Omit<Grid, 'markersHidden'>;
 
 export type GridLayout = Pick<Grid, 'rows' | 'cols' | 'cellSize'>;

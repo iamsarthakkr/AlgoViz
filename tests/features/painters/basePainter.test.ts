@@ -19,8 +19,7 @@ function scene(overrides: Partial<Parameters<typeof drawBaseScene>[0]> & { cells
         weights: Array(overrides.cells.length).fill(DEFAULT_WEIGHT),
         start: HIDDEN,
         goal: HIDDEN,
-        validStart: false,
-        validGoal: false,
+        markersHidden: true,
         ...overrides,
     });
     return ctx;
@@ -36,8 +35,7 @@ describe('basePainter', () => {
             cols: 2,
             start: { r: 0, c: 0 },
             goal: { r: 1, c: 1 },
-            validStart: true,
-            validGoal: true,
+            markersHidden: false,
         });
 
         expect(ctx.fills[0]).toMatchObject({ style: lightPalette.background, x: 0, y: 0, w: 2 * S, h: 2 * S });
@@ -87,8 +85,7 @@ describe('basePainter', () => {
                 weights: [heavy, heavy, heavy],
                 start: { r: 0, c: 0 },
                 goal: { r: 0, c: 2 },
-                validStart: true,
-                validGoal: true,
+                markersHidden: false,
             });
             expect(cellFills(ctx, 3)).toEqual([
                 lightPalette.cellEmpty,
@@ -112,8 +109,7 @@ describe('basePainter', () => {
                     weights: [w],
                     start: HIDDEN,
                     goal: HIDDEN,
-                    validStart: false,
-                    validGoal: false,
+                    markersHidden: true,
                 });
                 expect(ctx.arc).toHaveBeenCalledTimes(dots);
             },
@@ -130,21 +126,27 @@ describe('basePainter', () => {
                 weights: [WEIGHT_LEVELS[WEIGHT_LEVELS.length - 1]],
                 start: HIDDEN,
                 goal: HIDDEN,
-                validStart: false,
-                validGoal: false,
+                markersHidden: true,
             });
             expect(ctx.arc).not.toHaveBeenCalled();
         });
     });
 
-    it('drawMarkers only draws markers that are valid', () => {
+    it('drawMarkers draws both markers', () => {
         const ctx = createMockCtx();
-        drawMarkers(ctx, { r: 0, c: 0 }, { r: 1, c: 1 }, false, true, S);
-        expect(ctx.strokeStyles).toEqual([lightPalette.goal]);
+        drawMarkers(ctx, { r: 0, c: 0 }, { r: 1, c: 1 }, S);
+        expect(ctx.strokeStyles).toEqual([lightPalette.start, lightPalette.goal]);
+    });
 
-        const none = createMockCtx();
-        drawMarkers(none, { r: 0, c: 0 }, { r: 1, c: 1 }, false, false, S);
-        expect(none.stroke).not.toHaveBeenCalled();
+    it('drawBaseScene leaves the markers out while they are hidden', () => {
+        const ctx = scene({
+            cells: [CellKind.empty, CellKind.empty],
+            cols: 2,
+            start: { r: 0, c: 0 },
+            goal: { r: 0, c: 1 },
+        });
+        expect(ctx.strokeStyles).not.toContain(lightPalette.start);
+        expect(ctx.strokeStyles).not.toContain(lightPalette.goal);
     });
 
     it('drawStartMarker strokes an arrow centred in the cell', () => {
