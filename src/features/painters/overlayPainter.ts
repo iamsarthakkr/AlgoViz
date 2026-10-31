@@ -4,12 +4,11 @@
 // - paintAlgoEvent: paints one AlgoEvent (enqueue/visit) as it's yielded by the runner
 // - animateFinalPath: runs its own independent rAF loop to trace the final path cell-by-cell
 // - clearOverlay: wipes the overlay canvas (called before/after each run)
+// - Nothing redraws the markers here: the overlay multiplies with the base, so they show through
 
 import { AlgoEvent } from '@/types/algo';
 import { Coord } from '@/types/grid';
-import { drawMarkers } from './basePainter';
 import { lightPalette as palette } from './colors';
-import { Callback } from '@/types/common';
 
 export function clearOverlay(ctx: CanvasRenderingContext2D, rows: number, cols: number, s: number) {
     ctx.clearRect(0, 0, cols * s, rows * s);
@@ -45,13 +44,7 @@ export function drawFinalPath(
 }
 
 /** animate by filling N cells per frame; returns cancel fn */
-export function animateFinalPath(
-    ctx: CanvasRenderingContext2D,
-    nodes: Coord[],
-    s: number,
-    nps = 240,
-    onFrame?: Callback,
-) {
+export function animateFinalPath(ctx: CanvasRenderingContext2D, nodes: Coord[], s: number, nps = 240) {
     if (!nodes.length) return () => {};
     let i = 0;
     let raf = 0;
@@ -61,7 +54,6 @@ export function animateFinalPath(
         for (let k = 0; k < perFrame && i < nodes.length; k++, i++) {
             fillPathCell(ctx, nodes[i], s);
         }
-        if (onFrame) onFrame();
         if (i < nodes.length) raf = requestAnimationFrame(step);
     };
 
@@ -74,8 +66,6 @@ export function paintAlgoEvent(
     cellSize: number,
     e: AlgoEvent,
     opts?: {
-        start?: Coord;
-        goal?: Coord;
         drawPathInstant?: boolean;
     },
 ) {
@@ -89,9 +79,5 @@ export function paintAlgoEvent(
         case 'path':
             if (opts?.drawPathInstant) drawFinalPath(ctx, e.nodes, cellSize);
             break;
-    }
-
-    if (opts?.start && opts?.goal) {
-        drawMarkers(ctx, opts.start, opts.goal, cellSize);
     }
 }

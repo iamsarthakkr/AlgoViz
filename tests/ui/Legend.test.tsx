@@ -111,8 +111,7 @@ describe('Legend', () => {
 
     // Swatches are drawn with the grid's palette and painters, so they can't drift from what the grid shows
     describe('swatches match the grid', () => {
-        // on the grid everything is drawn over an empty cell, and frontier/visited are translucent;
-        // without this background the panel colour would show through instead
+        // the swatch shows a colour as it looks on a plain cell
         it('every swatch starts with a full empty-cell background', () => {
             renderLegend();
             allSwatches().forEach((s) => {
@@ -138,23 +137,13 @@ describe('Legend', () => {
 
         it.each([
             ['Frontier', palette.frontier],
+            ['Visited', palette.visited],
             ['Path', palette.pathCell],
         ])('%s then fills the whole swatch with its palette colour', (label, colour) => {
             renderLegend();
             const s = keySwatch(label);
             const size = parseFloat(s.style.width);
             expect(ctxOf(s).fills.slice(1)).toEqual([{ style: colour, x: 0, y: 0, w: size, h: size }]);
-        });
-
-        // both colours are translucent and a visited cell was queued first, so on screen it is
-        // visited over frontier; a flat visited swatch would look different
-        it('Visited paints frontier, then visited on top, like the overlay does', () => {
-            renderLegend();
-            expect(ctxOf(keySwatch('Visited')).fills.map((f) => f.style)).toEqual([
-                palette.cellEmpty,
-                palette.frontier,
-                palette.visited,
-            ]);
         });
 
         it.each([

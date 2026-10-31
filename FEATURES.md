@@ -172,7 +172,7 @@ chosen from the screen.
   controls are at least 44px tall, and the bottom bar clears the iPhone home bar.
 - **Legend**: the **draw palette** (Wall and the weight levels, as toggle buttons) and the **key**
   (Start, Goal, Frontier, Visited, Path). Every swatch is drawn with the grid's own painters and
-  palette, so it always matches the grid (visited is drawn over frontier, as on the grid). Rows on
+  palette, so it always matches the grid. Rows on
   phones with short labels (×2), a column on desktop. The selected tool is shown with a ring, which
   takes no space, so selecting can't resize the phone's legend row or the grid.
 - **Stats**: one row of label-over-value cells on phones, a column on desktop (see §5).
@@ -202,6 +202,9 @@ Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5
 - **Editing:** a drag that starts on the same level erases weights, and one that starts on a
   different level paints over it, so changing a level takes one drag. Right-click or Alt erases.
   The weight tool skips walls; the wall tool paints over terrain and removes its weight.
+- **Through a run:** the overlay blends with the grid rather than covering it, so terrain stays
+  visible under frontier, visited and path cells, and a weight painted over a finished run shows
+  at once.
 - **Drawing:** a tint per level, plus 1-3 dots on cells of at least 16px so the level doesn't rely
   on colour alone.
 - **Rules:** the cost is paid on entering a cell. Only plain cells carry weight: a wall never has

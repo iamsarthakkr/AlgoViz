@@ -35,8 +35,8 @@ export const lightPalette: GridPalette = {
     start: '#87260e',
     goal: '#ef4444',
 
-    frontier: 'rgba(139, 209, 221, 0.5)',
-    visited: 'rgba(81, 213, 239, 0.7)',
+    frontier: '#c5e8ee',
+    visited: '#74dbef',
     pathCell: '#efea51',
 
     weights: ['#eadbb8', '#c9a46c', '#8f6b3e'],
@@ -52,8 +52,8 @@ export const darkPalette: GridPalette = {
     start: '#87260e',
     goal: '#ef4444',
 
-    frontier: 'rgba(139, 209, 221, 0.5)',
-    visited: 'rgba(81, 213, 239, 0.7)',
+    frontier: '#c5e8ee',
+    visited: '#74dbef',
     pathCell: '#efea51',
 
     weights: ['#eadbb8', '#c9a46c', '#8f6b3e'],

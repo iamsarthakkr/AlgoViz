@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { animateFinalPath, clearOverlay, lightPalette, paintAlgoEvent } from '@/features/painters';
 import { drawFinalPath } from '@/features/painters/overlayPainter';
 import { createMockCtx } from '../../helpers/canvas';
@@ -44,14 +44,18 @@ describe('overlayPainter', () => {
         expect(instant.fills.map((f) => f.style)).toEqual(Array(4).fill(lightPalette.pathCell));
     });
 
-    it('redraws markers on top only when both are given', () => {
+    // the overlay multiplies with the base canvas, where the markers already are
+    it('leaves the markers to the base layer', () => {
         const ctx = createMockCtx();
-        const markers = { start: { r: 0, c: 0 }, goal: { r: 1, c: 1 } };
-        const visit = { type: 'visit', at: { r: 0, c: 1 } } as const;
-        paintAlgoEvent(ctx, S, visit, { start: markers.start });
+        paintAlgoEvent(ctx, S, { type: 'visit', at: { r: 0, c: 1 } });
         expect(ctx.stroke).not.toHaveBeenCalled();
-        paintAlgoEvent(ctx, S, visit, markers);
-        expect(ctx.strokeStyles).toEqual([lightPalette.start, lightPalette.goal]);
+        expect(ctx.arc).not.toHaveBeenCalled();
+    });
+
+    // Opaque, because the canvas blends with the base. A translucent colour would darken each time a cell
+    // is repainted, and frontier + visited would stack.
+    it.each(['frontier', 'visited', 'pathCell'] as const)('%s is an opaque colour', (name) => {
+        expect(lightPalette[name]).toMatch(/^#[0-9a-f]{6}$/i);
     });
 
     it('drawFinalPath can skip the endpoints', () => {
@@ -62,16 +66,14 @@ describe('overlayPainter', () => {
         expect(ctx.fills).toHaveLength(2);
     });
 
-    it('animateFinalPath fills ceil(nps / 60) cells per frame and calls onFrame', () => {
+    it('animateFinalPath fills ceil(nps / 60) cells per frame', () => {
         const ctx = createMockCtx();
-        const onFrame = vi.fn();
-        animateFinalPath(ctx, path, S, 120, onFrame); // 2 per frame
+        animateFinalPath(ctx, path, S, 120); // 2 per frame
         expect(ctx.fills).toHaveLength(0);
         raf.frame();
         expect(ctx.fills).toHaveLength(2);
         raf.flush();
         expect(ctx.fills).toHaveLength(4);
-        expect(onFrame).toHaveBeenCalledTimes(2);
     });
 
     it('animateFinalPath returns a cancel function that stops the trace', () => {

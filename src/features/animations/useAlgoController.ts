@@ -19,7 +19,7 @@ import { Callback } from '@/types/common';
 import { AlgoMap, AlgoStatus, type AlgoEvent } from '@/types/algo';
 import type { CanvasGridHandle } from '@/features/CanvasGrid';
 import { useGridStore, useSettingsStore } from '@/features/store';
-import { paintAlgoEvent, animateFinalPath, drawMarkers } from '@/features/painters';
+import { paintAlgoEvent, animateFinalPath } from '@/features/painters';
 
 import { createRunner, RunnerApi } from './runner';
 import { getGridSnapshot } from './utils';
@@ -88,11 +88,7 @@ export function useAlgoController(
             return (event) => {
                 const api = useGridStore.getState();
 
-                paintAlgoEvent(ctx, cellSize, event, {
-                    start: snap.start,
-                    goal: snap.goal,
-                    drawPathInstant: instant,
-                });
+                paintAlgoEvent(ctx, cellSize, event, { drawPathInstant: instant });
 
                 if (event.type === 'visit') setVisitedApprox((v) => v + 1);
                 if (event.type === 'path') {
@@ -106,13 +102,7 @@ export function useAlgoController(
                         if (cancelPathAnimRef.current) {
                             cancelPathAnimRef.current();
                         }
-                        cancelPathAnimRef.current = animateFinalPath(
-                            ctx,
-                            event.nodes,
-                            cellSize,
-                            opts.pathNps ?? 240,
-                            () => drawMarkers(ctx, snap.start, snap.goal, snap.cellSize),
-                        );
+                        cancelPathAnimRef.current = animateFinalPath(ctx, event.nodes, cellSize, opts.pathNps ?? 240);
                     }
                 }
             };

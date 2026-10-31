@@ -55,13 +55,7 @@ const KEY_ITEMS: { label: string; draw: Draw }[] = [
     { label: 'Start', draw: (ctx, s) => drawStartMarker(ctx, at, s) },
     { label: 'Goal', draw: (ctx, s) => drawGoalMarker(ctx, at, s) },
     { label: 'Frontier', draw: fill(palette.frontier) },
-    {
-        label: 'Visited',
-        draw: (ctx, s) => {
-            fill(palette.frontier)(ctx, s);
-            fill(palette.visited)(ctx, s);
-        },
-    },
+    { label: 'Visited', draw: fill(palette.visited) },
     { label: 'Path', draw: fill(palette.pathCell) },
 ];
 

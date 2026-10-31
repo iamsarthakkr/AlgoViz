@@ -194,7 +194,10 @@ every passive effect, so the canvas is resized first and the algorithm controlle
 `useEffect` then repaints onto the resized canvas (with a plain `useEffect` the resize would
 run after the repaint and erase a finished path). `components/CanvasStage.tsx` stacks
 two of these — `base` (pointer-events auto) and `overlay` (`pointer-events: none`,
-absolutely positioned on top) — and exposes both contexts via `useImperativeHandle`.
+absolutely positioned on top) — and exposes both contexts via `useImperativeHandle`. The overlay
+has `mix-blend-mode: multiply`, so it tints the base rather than covering it: weights, grid lines
+and markers stay visible through a run, and a weight painted over a finished run shows at once. It
+must be the CSS property, since `globalCompositeOperation` only blends within one canvas.
 
 `features/CanvasGrid/CanvasGrid.tsx` owns a `CanvasStage` and is the thing everything else
 talks to:
@@ -228,7 +231,9 @@ goal, markersHidden]`.
   `animateFinalPath`). `animateFinalPath` runs its **own independent rAF loop** (not the
   generator runner) that fills `nps` (nodes-per-second, default 240) path cells per second
   until done, returning a cancel function. `clearOverlay` is a plain `ctx.clearRect`.
-- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`, including `weights` (one tint
+- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`. The overlay colours are opaque:
+  multiplied with white they look exactly like themselves, and repainting a cell can't darken it.
+  The palette also has `weights` (one tint
   per `WEIGHT_LEVELS` entry, same order) and `weightMark` (the dots). `weightLevel(w)` and
   `weightColor(w)` turn a stored weight into its level index and tint. **`darkPalette` is
   currently identical to `lightPalette`**, and both painter modules hardcode
@@ -383,8 +388,8 @@ This is the biggest piece of glue. Responsibilities:
   returns a closure that calls `paintAlgoEvent` for every event, tracks `visitedApprox`
   (incremented on `visit`), and on the terminal `path` event: sets `pathLen` and `pathCost`, unlocks the
   grid (`setGridLock(false)`), and — unless `instant` — cancels any prior path animation and
-  starts a new one via `animateFinalPath`, whose per-frame callback keeps the start/goal
-  markers redrawn on top (since the overlay animation paints over them cell-by-cell).
+  starts a new one via `animateFinalPath`. Markers need no redraw: they are on the base canvas and
+  show through the blended overlay.
 - **Status**: `AlgoStatus | undefined` (`undefined` = no run yet), set **only** from the
   runner's `onStatusChange`; controls never set it. A new runner reports nothing at creation,
   so `createRunnerFor` writes its starting status (`initial`) itself, _after_
@@ -465,8 +470,7 @@ tracked outside the canvas bounds still deliver move events.
    can run at high event rates without janking React).
 6. When the generator yields its terminal `path` event: grid unlocks, `pathLen` updates, and
    `animateFinalPath` takes over with
-   its own independent rAF loop to trace the path cell-by-cell at `pathNps` (240/s default),
-   re-drawing the start/goal markers on top each frame. When the generator then returns, the
+   its own independent rAF loop to trace the path cell-by-cell at `pathNps` (240/s default), When the generator then returns, the
    runner reports `done` through `onStatusChange`.
 7. Meanwhile the **base** layer is untouched throughout — it only redraws in response to
    `useGridStore` changes (wall edits, marker moves), which is exactly what keeps grid
