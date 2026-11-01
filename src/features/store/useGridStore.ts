@@ -3,8 +3,10 @@
 // useGridStore: single source of truth for the grid itself.
 // - Flat CellKind[] cell array (index = r*cols+c), start/goal markers, dimensions
 // - weights: parallel flat array, the cost to enter each cell. Only plain cells carry weight: walls
-//   reset it and setWeight refuses walls and markers. A marker dropped on terrain keeps the stored
-//   weight so the terrain is back when it moves on (getGridSnapshot makes it not count)
+//   reset it and setWeight refuses walls, markers and any value outside WEIGHT_LEVELS (the painter
+//   only knows those, and a non-number would make the path algorithms skip the cell). A marker
+//   dropped on terrain keeps the stored weight so the terrain is back when it moves on
+//   (getGridSnapshot makes it not count)
 // - Mutators return whether they changed anything, and skip `set` when they didn't (no re-render).
 //   Callers refresh() only on true: every gridVersion bump makes the controller re-solve a finished run
 // - gridVersion is the manual dirty flag other hooks watch to invalidate cached runs
@@ -15,7 +17,7 @@ import { create } from 'zustand';
 import { CellKind, GridState } from '@/types/grid';
 import { initGrid, nearestEmptyCell } from '@/utils/grid';
 import { clamp } from '@/utils/common';
-import { DEFAULT_WEIGHT, MAX_CELL, MIN_CELL } from '@/utils/constants';
+import { DEFAULT_WEIGHT, MAX_CELL, MIN_CELL, WEIGHT_LEVELS } from '@/utils/constants';
 
 export const useGridStore = create<GridState>((set, get) => {
     const g = initGrid();
@@ -90,7 +92,7 @@ export const useGridStore = create<GridState>((set, get) => {
 
         setWeight: (r, c, w) => {
             const s = get();
-            if (!s.inBounds(r, c) || w < DEFAULT_WEIGHT) return false;
+            if (!s.inBounds(r, c) || !WEIGHT_LEVELS.includes(w)) return false;
             // don’t overwrite markers
             if ((s.start.r === r && s.start.c === c) || (s.goal.r === r && s.goal.c === c)) return false;
 

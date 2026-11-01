@@ -61,9 +61,14 @@ export function collect<T>(gen: Generator<T, void, void>): T[] {
     return [...gen];
 }
 
-/** Runs a maze generator to the end on an open board. */
-export function runMaze(gen: MazeGenerator, rows: number, cols: number): MazeGeneratorEvent[] {
-    return collect(gen(rows, cols, () => Array(rows * cols).fill(CellKind.empty)));
+/** Runs a maze generator to the end, on an open board unless given one. */
+export function runMaze(
+    gen: MazeGenerator,
+    rows: number,
+    cols: number,
+    cells: CellKind[] = Array(rows * cols).fill(CellKind.empty),
+): MazeGeneratorEvent[] {
+    return collect(gen(rows, cols, () => cells));
 }
 
 export function runToPath(gen: AlgoGenerator): { events: AlgoEvent[]; path: PathEvent } {

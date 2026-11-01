@@ -7,7 +7,7 @@ import { mazeMap, mazeRegistry } from '@/features/mazes';
 import { MazeGenerator } from '@/types/mazeGenerator';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { installFakeRaf } from '../../helpers/raf';
-import { seedRandom } from '../../helpers/random';
+import { fixRandom, seedRandom } from '../../helpers/random';
 
 // Deterministic generator exercising every event type
 const scripted: MazeGenerator = function* () {
@@ -212,6 +212,48 @@ describe('useMazeGenerator', () => {
         expect(seen).toEqual([CellKind.wall]);
     });
 
+    describe('Random Weights', () => {
+        const run = () => {
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 6000 }));
+            act(() => result.current.generate('Random Weights'));
+            act(() => void raf.flush());
+        };
+
+        it('keeps the walls and replaces the old weights', () => {
+            api().setWall(0, 0);
+            api().setWeight(1, 1, WEIGHT_LEVELS[2]);
+            fixRandom(0.99); // no coin flip lands, so only the reset shows
+            run();
+            expect(api().at(0, 0)).toBe(CellKind.wall);
+            expect(noWeights()).toBe(true);
+        });
+
+        it('weights every plain cell it lands on, but not walls or marker cells', () => {
+            api().setWall(0, 0);
+            fixRandom(0);
+            run();
+            const { start, goal } = api();
+            expect(api().weightAt(0, 0)).toBe(DEFAULT_WEIGHT);
+            expect(api().weightAt(start.r, start.c)).toBe(DEFAULT_WEIGHT);
+            expect(api().weightAt(goal.r, goal.c)).toBe(DEFAULT_WEIGHT);
+            const unweighted = api().weights.filter((w) => w === DEFAULT_WEIGHT);
+            expect(unweighted).toHaveLength(3);
+        });
+
+        it('leaves only level values in the store', () => {
+            seedRandom(3);
+            run();
+            for (const w of api().weights) expect([DEFAULT_WEIGHT, ...WEIGHT_LEVELS]).toContain(w);
+        });
+
+        it('gives the board back when done', () => {
+            seedRandom(3);
+            run();
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
+        });
+    });
+
     describe('Clear actions', () => {
         const run = (key: string) => {
             const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 60 }));
@@ -249,6 +291,16 @@ describe('useMazeGenerator', () => {
             expect(api().cells).not.toContain(CellKind.wall);
             expect(api().gridLock).toBe(false);
             expect(api().markersHidden).toBe(false);
+        });
+
+        it('leaves the generator usable for the next run', () => {
+            seedRandom(7);
+            api().reset(15, 21);
+            const result = run('Clear Board');
+            act(() => void raf.flush());
+            act(() => result.current.generate(WALL_MAZES[0]));
+            act(() => void raf.flush());
+            expect(api().cells).toContain(CellKind.wall);
         });
     });
 });

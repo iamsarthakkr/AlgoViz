@@ -7,7 +7,7 @@ import { lightPalette } from '@/features/painters';
 import { mazeRegistry } from '@/features/mazes';
 import { algoLabels } from '@/features/algo';
 import { CellKind } from '@/types/grid';
-import { WEIGHT_LEVELS } from '@/utils/constants';
+import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { MockCtx } from '../helpers/canvas';
 import { installFakeRaf } from '../helpers/raf';
 import { seedRandom } from '../helpers/random';
@@ -244,6 +244,41 @@ describe('Grid page', () => {
             expect(gridLock).toBe(false);
             expect(cells).toContain(CellKind.wall);
             expect(markersHidden).toBe(false);
+        });
+
+        describe('menu actions on the real store', () => {
+            const pick = async (label: string) => {
+                await userEvent.setup().click(within(button('Mazes & Patterns').parentElement!).getByText(label));
+                act(() => void raf.flush());
+            };
+            const store = () => useGridStore.getState();
+
+            beforeEach(() => {
+                render(<Grid />);
+                store().setWall(0, 0);
+                store().setWeight(0, 1, WEIGHT_LEVELS[2]);
+            });
+
+            it('Clear Board empties the board', async () => {
+                await pick('Clear Board');
+                expect(store().cells).not.toContain(CellKind.wall);
+                expect(store().weightAt(0, 1)).toBe(DEFAULT_WEIGHT);
+                expect(store().gridLock).toBe(false);
+            });
+
+            it('Clear Weights keeps the walls', async () => {
+                await pick('Clear Weights');
+                expect(store().at(0, 0)).toBe(CellKind.wall);
+                expect(store().weightAt(0, 1)).toBe(DEFAULT_WEIGHT);
+            });
+
+            it('Random Weights keeps the walls and adds terrain', async () => {
+                seedRandom(3);
+                await pick('Random Weights');
+                expect(store().at(0, 0)).toBe(CellKind.wall);
+                expect(store().weights.some((w) => WEIGHT_LEVELS.includes(w))).toBe(true);
+                expect(store().markersHidden).toBe(false);
+            });
         });
     });
 });

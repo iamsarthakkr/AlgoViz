@@ -103,6 +103,38 @@ describe('Dropdown', () => {
             expect(other).not.toBe(one);
         });
 
+        // the page re-renders every frame during a run; that mustn't snap the menu back
+        it('keeps the section the user opened across a re-render', async () => {
+            const { rerender } = render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            await userEvent.click(screen.getByText('Second'));
+            expect(details()[1].open).toBe(true);
+            rerender(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            expect(details()[1].open).toBe(true);
+        });
+
+        it('does not close the menu when a section header is clicked', () => {
+            vi.useFakeTimers();
+            try {
+                render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+                const trigger = screen.getByRole('button', { name: 't' });
+                trigger.focus();
+                screen.getByText('Second').click();
+                act(() => vi.advanceTimersByTime(10));
+                expect(trigger).toHaveFocus();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        // a long menu must scroll on a phone, and long labels wrap instead of being cut off;
+        // jsdom has no layout, so these pin the classes (checked in a real browser too)
+        it('caps the menu height and wraps labels', () => {
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            const [menu, nested] = screen.getAllByRole('list', { hidden: true });
+            expect(menu).toHaveClass('overflow-y-auto', 'flex-nowrap');
+            expect(nested).toHaveClass('whitespace-normal');
+        });
+
         it('calls onSelect with the clicked option', async () => {
             const onSelect = vi.fn();
             render(<Dropdown title="t" sections={SECTIONS} onSelect={onSelect} />);

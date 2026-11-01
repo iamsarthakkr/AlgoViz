@@ -10,6 +10,7 @@ import { prims } from './prims';
 import { randomGenerator } from './random';
 import { recursiveDivision } from './recursiveDivision';
 import { clearBoard, clearWalls, clearWeights } from './clear';
+import { randomWeightsGenerator } from './randomWeights';
 
 export const mazeRegistry: readonly MazeEntry[] = [
     { label: 'Recursive Division', run: recursiveDivision(), group: 'Mazes' },
@@ -18,6 +19,8 @@ export const mazeRegistry: readonly MazeEntry[] = [
     { label: "Prim's", run: prims, group: 'Mazes' },
     { label: 'Randomized Depth First Search', run: floodFill, group: 'Mazes' },
     { label: 'Random Walls', run: randomGenerator, group: 'Mazes' },
+
+    { label: 'Random Weights', run: randomWeightsGenerator, group: 'Terrain' },
 
     { label: 'Clear Walls', run: clearWalls, group: 'Clear' },
     { label: 'Clear Weights', run: clearWeights, group: 'Clear' },

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { AlgoPickers } from '@/features/Toolbar/AlgoPickers';
 import { useSettingsStore } from '@/features/store';
 import { algoLabels } from '@/features/algo';
-import { mazeRegistry } from '@/features/mazes';
+import { mazeRegistry, mazeSections } from '@/features/mazes';
 import { fakeAlgoController, fakeMazeGenerator } from '../../helpers/controllers';
 
 const dropdown = (title: string) => screen.getByRole('button', { name: title }).parentElement!;
@@ -47,5 +47,31 @@ describe('AlgoPickers', () => {
         const [cleared] = vi.mocked(algo.clear).mock.invocationCallOrder;
         const [generated] = vi.mocked(maze.generate).mock.invocationCallOrder;
         expect(cleared).toBeLessThan(generated);
+    });
+
+    describe('maze menu', () => {
+        it('groups every entry under its section', () => {
+            setup();
+            const menu = dropdown('Mazes & Patterns');
+            for (const section of mazeSections) {
+                const summary = [...menu.querySelectorAll('summary')].find((s) => s.textContent === section.title)!;
+                const details = summary.closest('details')!;
+                for (const label of section.options) expect(within(details).getByText(label)).toBeInTheDocument();
+            }
+        });
+
+        // Clear and Terrain go through the same path as a maze, not only the first entry
+        it.each(mazeRegistry.map((e) => e.label))('picking %s clears the path and runs it', async (label) => {
+            const { algo, maze, user } = setup();
+            await user.click(within(dropdown('Mazes & Patterns')).getByText(label));
+            expect(algo.clear).toHaveBeenCalledOnce();
+            expect(maze.generate).toHaveBeenCalledExactlyOnceWith(label);
+        });
+
+        // the trigger is the rightmost control on phones: left-aligned, the menu runs off the screen
+        it('aligns to the right on phones and to the left on desktop', () => {
+            setup();
+            expect(dropdown('Mazes & Patterns')).toHaveClass('d-dropdown-end', 'xl:d-dropdown-start');
+        });
     });
 });

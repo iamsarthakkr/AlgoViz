@@ -119,6 +119,25 @@ describe('useGridStore', () => {
             expect(api().weights).toBe(before);
         });
 
+        // Random Weights once sent undefined: it passed a "< default" check, drew as plain and made
+        // dijkstra skip the cell (d + undefined is NaN), so these must not reach the store
+        it.each([
+            ['undefined', undefined as unknown as number],
+            ['NaN', NaN],
+            ['the default', DEFAULT_WEIGHT],
+            ['an off-level value', HEAVY + 1],
+            ['Infinity', Infinity],
+        ])('setWeight refuses %s', (_name, w) => {
+            const before = api().weights;
+            expect(api().setWeight(0, 0, w)).toBe(false);
+            expect(api().weights).toBe(before);
+        });
+
+        it.each(WEIGHT_LEVELS)('setWeight accepts level %i', (w) => {
+            expect(api().setWeight(0, 0, w)).toBe(true);
+            expect(api().weightAt(0, 0)).toBe(w);
+        });
+
         it('setWeight never paints the start or goal cell', () => {
             const { start, goal } = api();
             api().setWeight(start.r, start.c, HEAVY);
