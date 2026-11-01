@@ -17,14 +17,14 @@ import { CanvasGrid, CanvasGridHandle } from '@/features/CanvasGrid';
 import { PlaybackControls, Toolbar } from '@/features/Toolbar';
 import { useResponsiveGrid } from '@/features/hooks/useResponsiveGrid';
 import { useAlgoController, useMazeGenerator } from '@/features/animations';
-import { mazes } from '@/features/mazes';
 import { algoRegistry, algorithmMap } from '@/features/algo';
-import { Stats } from './Stats';
-import { Legend } from './Legend';
-import { InfoModal } from './InfoModal';
 import { useInfoModal } from '@/features/hooks/useInfoModal';
 import { useGridStore, useSettingsStore } from '@/features/store';
 import { DEFAULT_WEIGHT } from '@/utils/constants';
+import { mazeMap } from '@/features/mazes';
+import { Stats } from './Stats';
+import { Legend } from './Legend';
+import { InfoModal } from './InfoModal';
 
 export default function GridPage() {
     const gridRef = useRef<CanvasGridHandle>(null);
@@ -33,7 +33,7 @@ export default function GridPage() {
     const algoController = useAlgoController(gridRef, algorithmMap, {
         animatePath: true,
     });
-    const mazeGenerator = useMazeGenerator(mazes);
+    const mazeGenerator = useMazeGenerator(mazeMap);
     const drawTool = useSettingsStore((s) => s.tool);
 
     const shortest = useSettingsStore((s) => {

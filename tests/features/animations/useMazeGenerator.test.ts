@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useMazeGenerator } from '@/features/animations/useMazeGenerator';
 import { useGridStore } from '@/features/store';
 import { CellKind } from '@/types/grid';
-import { mazes } from '@/features/mazes';
+import { mazeMap, mazeRegistry } from '@/features/mazes';
 import { MazeGenerator } from '@/types/mazeGenerator';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { installFakeRaf } from '../../helpers/raf';
@@ -20,6 +20,8 @@ const scripted: MazeGenerator = function* () {
 };
 
 const api = () => useGridStore.getState();
+const noWeights = () => api().weights.every((w) => w === DEFAULT_WEIGHT);
+const WALL_MAZES = mazeRegistry.filter((e) => e.group === 'Mazes').map((e) => e.label);
 
 describe('useMazeGenerator', () => {
     let raf: ReturnType<typeof installFakeRaf>;
@@ -140,12 +142,12 @@ describe('useMazeGenerator', () => {
         });
 
         // even coordinates: the lattice mazes keep walls there, so a marker dragged onto one gets walled over
-        it.each(Object.keys(mazes))('leaves both markers on open cells after %s', (key) => {
+        it.each(WALL_MAZES)('leaves both markers on open cells after %s', (key) => {
             seedRandom(7);
             api().reset(15, 21);
             api().setStart(2, 2);
             api().setGoal(12, 18);
-            const { result } = renderHook(() => useMazeGenerator(mazes, { speed: 6000 }));
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 6000 }));
             act(() => result.current.generate(key));
             act(() => void raf.flush());
             expect(isOpen(api().start)).toBe(true);
@@ -153,17 +155,100 @@ describe('useMazeGenerator', () => {
             expect(api().start).not.toEqual(api().goal);
         });
 
-        // Decision: a wall maze is a fresh board. Every registered maze starts with fill-wall or
-        // clear-wall; only fillWalls drops weights by itself, so a clear-wall maze must too.
-        it.each(Object.keys(mazes))('%s starts from a board with no weights', (key) => {
+        // Decision: a wall maze is a fresh board. Only fillWalls drops weights by itself, so a maze
+        // starting with clear-wall must also yield clear-weights.
+        it.each(WALL_MAZES)('%s starts from a board with no weights', (key) => {
             seedRandom(7);
             api().reset(15, 21);
             api().setWeight(1, 1, WEIGHT_LEVELS[0]);
             api().setWeight(2, 2, WEIGHT_LEVELS[2]);
-            const { result } = renderHook(() => useMazeGenerator(mazes, { speed: 6000 }));
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 6000 }));
             act(() => result.current.generate(key));
             act(() => void raf.flush());
-            expect(api().weights.every((w) => w === DEFAULT_WEIGHT)).toBe(true);
+            expect(noWeights()).toBe(true);
+        });
+    });
+
+    describe('weight events', () => {
+        it('writes weight and clear-weights into the store', () => {
+            const gen: MazeGenerator = function* () {
+                yield { type: 'weight', at: { r: 1, c: 1 }, w: WEIGHT_LEVELS[1] };
+                yield { type: 'clear-weights' };
+                yield { type: 'done' };
+            };
+            const { result } = renderHook(() => useMazeGenerator({ gen }, { speed: 60 }));
+            act(() => result.current.generate('gen'));
+            raf.frame();
+            expect(api().weightAt(1, 1)).toBe(WEIGHT_LEVELS[1]);
+            raf.frame();
+            expect(noWeights()).toBe(true);
+        });
+
+        // clear-wall used to wipe weights in the hook, which would make Clear walls drop terrain
+        it('leaves weights alone on clear-wall', () => {
+            api().setWeight(1, 1, WEIGHT_LEVELS[2]);
+            const gen: MazeGenerator = function* () {
+                yield { type: 'clear-wall' };
+                yield { type: 'done' };
+            };
+            const { result } = renderHook(() => useMazeGenerator({ gen }, { speed: 60 }));
+            act(() => result.current.generate('gen'));
+            act(() => void raf.flush());
+            expect(api().weightAt(1, 1)).toBe(WEIGHT_LEVELS[2]);
+        });
+    });
+
+    // a generator chained after another must see the walls the first one built
+    it('gives generators the live board, not a copy from the start', () => {
+        const seen: CellKind[] = [];
+        const gen: MazeGenerator = function* (_rows, _cols, getCells) {
+            yield { type: 'wall', at: { r: 1, c: 1 } };
+            seen.push(getCells()[api().idx(1, 1)]);
+            yield { type: 'done' };
+        };
+        const { result } = renderHook(() => useMazeGenerator({ gen }, { speed: 60 }));
+        act(() => result.current.generate('gen'));
+        act(() => void raf.flush());
+        expect(seen).toEqual([CellKind.wall]);
+    });
+
+    describe('Clear actions', () => {
+        const run = (key: string) => {
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 60 }));
+            act(() => result.current.generate(key));
+            return result;
+        };
+
+        beforeEach(() => {
+            api().setWall(0, 0);
+            api().setWeight(1, 1, WEIGHT_LEVELS[0]);
+        });
+
+        it.each([
+            ['Clear Walls', CellKind.empty, WEIGHT_LEVELS[0]],
+            ['Clear Weights', CellKind.wall, DEFAULT_WEIGHT],
+            ['Clear Board', CellKind.empty, DEFAULT_WEIGHT],
+        ])('%s clears only its own layer', (key, cell, weight) => {
+            run(key);
+            act(() => void raf.flush());
+            expect(api().at(0, 0)).toBe(cell);
+            expect(api().weightAt(1, 1)).toBe(weight);
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
+        });
+
+        it('stops a running maze and gives the board back', () => {
+            seedRandom(7);
+            api().reset(15, 21);
+            const result = run(WALL_MAZES[0]);
+            for (let i = 0; i < 5; i++) raf.frame();
+            expect(api().cells).toContain(CellKind.wall);
+
+            act(() => result.current.generate('Clear Walls'));
+            act(() => void raf.flush());
+            expect(api().cells).not.toContain(CellKind.wall);
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
         });
     });
 });

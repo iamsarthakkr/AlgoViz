@@ -1,7 +1,7 @@
 import { CellKind, Coord, GridSnapShot } from '@/types/grid';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { AlgoEvent, AlgoGenerator, PathEvent } from '@/types/algo';
-import { MazeGeneratorEvent } from '@/types/mazeGenerator';
+import { MazeGenerator, MazeGeneratorEvent } from '@/types/mazeGenerator';
 
 /**
  * Builds a grid snapshot from an ASCII picture:
@@ -59,6 +59,11 @@ export function emptyGrid(rows: number, cols: number, start: Coord, goal: Coord)
 
 export function collect<T>(gen: Generator<T, void, void>): T[] {
     return [...gen];
+}
+
+/** Runs a maze generator to the end on an open board. */
+export function runMaze(gen: MazeGenerator, rows: number, cols: number): MazeGeneratorEvent[] {
+    return collect(gen(rows, cols, () => Array(rows * cols).fill(CellKind.empty)));
 }
 
 export function runToPath(gen: AlgoGenerator): { events: AlgoEvent[]; path: PathEvent } {

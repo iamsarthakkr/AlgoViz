@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import Grid from '@/ui/Grid';
 import { useGridStore, useSettingsStore } from '@/features/store';
 import { lightPalette } from '@/features/painters';
-import { mazesLabels } from '@/features/mazes';
+import { mazeRegistry } from '@/features/mazes';
 import { algoLabels } from '@/features/algo';
 import { CellKind } from '@/types/grid';
 import { WEIGHT_LEVELS } from '@/utils/constants';
@@ -234,7 +234,7 @@ describe('Grid page', () => {
             seedRandom(3);
             render(<Grid />);
             const user = userEvent.setup();
-            const maze = mazesLabels[0];
+            const maze = mazeRegistry[0].label;
 
             await user.click(within(button('Mazes & Patterns').parentElement!).getByText(maze));
             expect(useGridStore.getState().gridLock).toBe(true);

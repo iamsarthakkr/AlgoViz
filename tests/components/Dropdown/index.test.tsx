@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Dropdown } from '@/components/Dropdown';
 
@@ -62,6 +62,68 @@ describe('Dropdown', () => {
     it('wraps the title so a long one truncates instead of wrapping', () => {
         render(<Dropdown title="A very long option name" options={[]} onSelect={vi.fn()} />);
         expect(screen.getByText('A very long option name')).toHaveClass('truncate');
+    });
+
+    describe('sections', () => {
+        const SECTIONS = [
+            { title: 'First', options: ['a', 'b'] },
+            { title: 'Second', options: ['c'] },
+        ];
+        const details = () => [...document.querySelectorAll('details')];
+
+        it('renders each section as a collapsible group holding its options', () => {
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            expect(details().map((d) => d.querySelector('summary')!.textContent)).toEqual(['First', 'Second']);
+            const items = within(details()[0]).getAllByRole('listitem', { hidden: true });
+            expect(items.map((li) => li.textContent)).toEqual(['a', 'b']);
+        });
+
+        // daisyUI only styles <li><details>, and a <ul> may only hold <li>s
+        it('puts each section in a list item of the menu', () => {
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            for (const d of details()) expect(d.parentElement!.tagName).toBe('LI');
+        });
+
+        it('starts with only the first section open', () => {
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />);
+            expect(details().map((d) => d.open)).toEqual([true, false]);
+        });
+
+        // the shared name is what makes the browser close the others
+        it('names the sections alike, and differently from another dropdown', () => {
+            render(
+                <>
+                    <Dropdown title="t" sections={SECTIONS} onSelect={vi.fn()} />
+                    <Dropdown title="u" sections={SECTIONS} onSelect={vi.fn()} />
+                </>,
+            );
+            const [one, two, other] = details().map((d) => d.getAttribute('name'));
+            expect(one).toBeTruthy();
+            expect(two).toBe(one);
+            expect(other).not.toBe(one);
+        });
+
+        it('calls onSelect with the clicked option', async () => {
+            const onSelect = vi.fn();
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={onSelect} />);
+            await userEvent.click(screen.getByText('b'));
+            expect(onSelect).toHaveBeenCalledWith('b');
+        });
+
+        it('does not select anything when a section header is clicked', async () => {
+            const onSelect = vi.fn();
+            render(<Dropdown title="t" sections={SECTIONS} onSelect={onSelect} />);
+            await userEvent.click(screen.getByText('Second'));
+            expect(onSelect).not.toHaveBeenCalled();
+        });
+    });
+
+    // compile-time: tsc fails here (in `npm run build`) if the props stop being one or the other
+    it('takes options or sections, not both or neither', () => {
+        // @ts-expect-error neither
+        render(<Dropdown title="neither" onSelect={vi.fn()} />);
+        // @ts-expect-error both
+        render(<Dropdown title="both" options={['a']} sections={[]} onSelect={vi.fn()} />);
     });
 
     describe('menu gap', () => {

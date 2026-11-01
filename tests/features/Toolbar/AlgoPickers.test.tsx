@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { AlgoPickers } from '@/features/Toolbar/AlgoPickers';
 import { useSettingsStore } from '@/features/store';
 import { algoLabels } from '@/features/algo';
-import { mazesLabels } from '@/features/mazes';
+import { mazeRegistry } from '@/features/mazes';
 import { fakeAlgoController, fakeMazeGenerator } from '../../helpers/controllers';
 
 const dropdown = (title: string) => screen.getByRole('button', { name: title }).parentElement!;
@@ -40,7 +40,7 @@ describe('AlgoPickers', () => {
     // the old path must be cleared before the maze starts writing walls under it
     it('clears the current path, then generates the chosen maze', async () => {
         const { algo, maze, user } = setup();
-        const key = mazesLabels[0];
+        const key = mazeRegistry[0].label;
         await user.click(within(dropdown('Mazes & Patterns')).getByText(key));
 
         expect(maze.generate).toHaveBeenCalledWith(key);
