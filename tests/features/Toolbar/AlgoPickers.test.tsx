@@ -8,6 +8,8 @@ import { mazeRegistry, mazeSections } from '@/features/mazes';
 import { fakeAlgoController, fakeMazeGenerator } from '../../helpers/controllers';
 
 const dropdown = (title: string) => screen.getByRole('button', { name: title }).parentElement!;
+// by the clickable option, as a section header can share its label
+const option = (label: string) => within(dropdown('Mazes & Patterns')).getByText(label, { selector: 'a' });
 
 describe('AlgoPickers', () => {
     const setup = () => {
@@ -56,14 +58,15 @@ describe('AlgoPickers', () => {
             for (const section of mazeSections) {
                 const summary = [...menu.querySelectorAll('summary')].find((s) => s.textContent === section.title)!;
                 const details = summary.closest('details')!;
-                for (const label of section.options) expect(within(details).getByText(label)).toBeInTheDocument();
+                for (const label of section.options)
+                    expect(within(details).getByText(label, { selector: 'a' })).toBeInTheDocument();
             }
         });
 
         // Clear and Terrain go through the same path as a maze, not only the first entry
         it.each(mazeRegistry.map((e) => e.label))('picking %s clears the path and runs it', async (label) => {
             const { algo, maze, user } = setup();
-            await user.click(within(dropdown('Mazes & Patterns')).getByText(label));
+            await user.click(option(label));
             expect(algo.clear).toHaveBeenCalledOnce();
             expect(maze.generate).toHaveBeenCalledExactlyOnceWith(label);
         });

@@ -43,6 +43,7 @@ describe('maze registry', () => {
             'Randomized Depth First Search': 'Mazes',
             'Random Walls': 'Mazes',
             'Random Weights': 'Terrain',
+            'Terrain Blobs': 'Terrain',
             'Clear Walls': 'Clear',
             'Clear Weights': 'Clear',
             'Clear Board': 'Clear',
