@@ -13,8 +13,10 @@ import { clearBoard, clearWalls, clearWeights } from './clear';
 import { randomWeightsGenerator } from './randomWeights';
 import { terrainGenerator } from './terrain';
 import { loopsGenerator } from './loops';
+import { sequence } from './sequence';
 
 export const mazeRegistry: readonly MazeEntry[] = [
+    { label: 'Weighted Maze', run: sequence(prims, loopsGenerator, terrainGenerator), group: 'Mazes' },
     { label: 'Recursive Division', run: recursiveDivision(), group: 'Mazes' },
     { label: 'Recursive Division (vertical skew)', run: recursiveDivision(0.7), group: 'Mazes' },
     { label: 'Recursive Division (horizontal skew)', run: recursiveDivision(0.3), group: 'Mazes' },

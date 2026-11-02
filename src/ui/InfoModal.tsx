@@ -61,7 +61,8 @@ const SLIDES: Slide[] = [
                     <b>Pause</b> stops, <b>Speed</b> changes the pace, <b>Clear</b> wipes the result.
                 </li>
                 <li>
-                    <b>Mazes:</b> pick one from <b>Mazes &amp; Patterns</b> to fill the grid with walls.
+                    <b>Mazes:</b> <b>Mazes &amp; Patterns</b> builds walls, adds terrain or clears the board.{' '}
+                    <b>Weighted Maze</b> does it all in one go.
                 </li>
             </ul>
         ),

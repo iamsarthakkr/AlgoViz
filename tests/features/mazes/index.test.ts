@@ -37,6 +37,7 @@ describe('maze registry', () => {
     // A new entry must be added here.
     it('files each entry under the expected group', () => {
         expect(Object.fromEntries(mazeRegistry.map((e) => [e.label, e.group]))).toEqual({
+            'Weighted Maze': 'Mazes',
             'Recursive Division': 'Mazes',
             'Recursive Division (vertical skew)': 'Mazes',
             'Recursive Division (horizontal skew)': 'Mazes',

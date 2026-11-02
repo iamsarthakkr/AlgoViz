@@ -4,8 +4,10 @@ A pathfinding-algorithm visualizer. Paint walls on a grid, place start/goal mark
 watch a pathfinding algorithm (or generate a maze) animate step by step on canvas.
 
 - **Algorithms**: Breadth-first search, Depth-first search, Bidirectional BFS, Dijkstra's
-- **Maze / pattern generators**: Recursive Division (+ vertical/horizontal skew), Prim's,
-  Randomized Depth-First Search, Random Walls
+- **Maze / pattern generators**: Weighted Maze (one click: maze, loops and terrain), Recursive
+  Division (+ vertical/horizontal skew), Prim's, Randomized Depth-First Search, Random Walls
+- **Terrain and clear actions**: Terrain Blobs, Random Weights, Add Loops; Clear Walls, Clear
+  Weights, Clear Board
 - **Controls**: Visualize, Pause/Step, Clear path, speed presets (slow/medium/fast)
 - **Editing**: pick Wall or a weight in the legend and drag to draw, drag starting on a matching
   cell to erase (or right-click / Alt), drag the start and goal markers to move them

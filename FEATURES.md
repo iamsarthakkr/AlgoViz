@@ -79,12 +79,16 @@ Visualize again to replay against the new grid.
 
 ## 4. Maze & pattern generation
 
-A second dropdown ("Mazes & Patterns", `features/mazes/index.ts`) fills the grid with a
-generated wall pattern, animated the same way algorithms are (generator + `requestAnimationFrame`
-runner), but writing directly into the grid store instead of a canvas overlay:
+A second dropdown ("Mazes & Patterns", `features/mazes/registry.ts`) changes the board, animated
+the same way algorithms are (generator + `requestAnimationFrame` runner), but writing directly into
+the grid store instead of a canvas overlay. It has one collapsible section per group, and one
+section is open at a time, which keeps the menu short on phones.
+
+**Mazes** replace the board, so walls change and weights are wiped:
 
 | Pattern                              | File                                         | Technique                                                                                     |
 | ------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Weighted Maze                        | `sequence.ts`                                | Prim's, then Add Loops, then Terrain Blobs, as one run.                                       |
 | Recursive Division                   | `recursiveDivision.ts` (`vertical_prob=0.5`) | Recursively bisects the interior with single-gap walls, unbiased direction choice.            |
 | Recursive Division (vertical skew)   | same file (`vertical_prob=0.7`)              | Same algorithm, biased toward vertical dividing walls → more horizontally elongated chambers. |
 | Recursive Division (horizontal skew) | same file (`vertical_prob=0.3`)              | Biased toward horizontal dividing walls.                                                      |
@@ -92,7 +96,21 @@ runner), but writing directly into the grid store instead of a canvas overlay:
 | Randomized Depth First Search        | `floodFill.ts`                               | Iterative backtracking carve (classic "growing tree" maze).                                   |
 | Random Walls                         | `random.ts`                                  | Independent per-cell coin flip (35% wall probability), no connectivity guarantee.             |
 
-Behavior common to all patterns:
+**Terrain** builds on the board, so it can run on top of any maze:
+
+| Pattern        | File               | Technique                                                                                                 |
+| -------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| Terrain Blobs  | `terrain.ts`       | Round blobs, heavy at the centre and light at the rim. Replaces weights; overlaps keep the heavier level. |
+| Random Weights | `randomWeights.ts` | Independent per-cell coin flip (30%) for a random level. Replaces weights.                                |
+| Add Loops      | `loops.ts`         | Opens 12% of the walls that sit between two passages. Keeps weights, and the outer border stays closed.   |
+
+Add Loops exists because Prim's, DFS and Recursive Division leave exactly one route between any two
+cells, so weights can't change the route on them. A loop gives the algorithms a choice.
+
+**Clear** (`clear.ts`): Clear Walls, Clear Weights and Clear Board each reset only their own layer.
+They're generators like the rest, so picking one mid-maze stops the maze and restores the markers.
+
+Behavior common to all entries:
 
 - Generating a maze first calls `algoController.clear()` (discarding any visualized path so
   it doesn't linger under the new walls), then hides the start/goal markers and **locks the
@@ -209,7 +227,8 @@ Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5
   on colour alone.
 - **Rules:** the cost is paid on entering a cell. Only plain cells carry weight: a wall never has
   one, and the start and goal cells never count. A marker dragged across terrain doesn't damage it.
-- **Mazes** start from a fresh board, so generating one removes all weights.
+- **Mazes** start from a fresh board, so generating one removes all weights. Terrain Blobs and
+  Random Weights add terrain to the current walls, and Weighted Maze builds both. See §4.
 - **Algorithms:** Dijkstra reads weights and finds the cheapest path. BFS, DFS and Bidirectional BFS
   ignore them, but still report what their path really costs. Editing a weight after a finished run
   re-solves it live. See ARCHITECTURE.md §2 and §4.

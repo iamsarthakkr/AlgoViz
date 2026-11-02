@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useMazeGenerator } from '@/features/animations/useMazeGenerator';
+import { getGridSnapshot } from '@/features/animations/utils';
+import { bfs } from '@/features/algo/bfs';
+import { dijkstra } from '@/features/algo/dijkstra';
 import { useGridStore } from '@/features/store';
 import { CellKind } from '@/types/grid';
 import { mazeMap, mazeRegistry } from '@/features/mazes';
@@ -8,6 +11,7 @@ import { MazeGenerator } from '@/types/mazeGenerator';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { installFakeRaf } from '../../helpers/raf';
 import { fixRandom, seedRandom } from '../../helpers/random';
+import { runToPath } from '../../helpers/grid';
 
 // Deterministic generator exercising every event type
 const scripted: MazeGenerator = function* () {
@@ -22,6 +26,7 @@ const scripted: MazeGenerator = function* () {
 const api = () => useGridStore.getState();
 const noWeights = () => api().weights.every((w) => w === DEFAULT_WEIGHT);
 const WALL_MAZES = mazeRegistry.filter((e) => e.group === 'Mazes').map((e) => e.label);
+const WEIGHTED_MAZE = 'Weighted Maze';
 
 describe('useMazeGenerator', () => {
     let raf: ReturnType<typeof installFakeRaf>;
@@ -157,7 +162,7 @@ describe('useMazeGenerator', () => {
 
         // Decision: a wall maze is a fresh board. Only fillWalls drops weights by itself, so a maze
         // starting with clear-wall must also yield clear-weights.
-        it.each(WALL_MAZES)('%s starts from a board with no weights', (key) => {
+        it.each(WALL_MAZES.filter((key) => key !== WEIGHTED_MAZE))('%s starts from a board with no weights', (key) => {
             seedRandom(7);
             api().reset(15, 21);
             api().setWeight(1, 1, WEIGHT_LEVELS[0]);
@@ -288,6 +293,86 @@ describe('useMazeGenerator', () => {
             act(() => result.current.generate('Add Loops'));
             act(() => void raf.flush());
             expect(api().weightAt(r, c)).toBe(WEIGHT_LEVELS[2]);
+        });
+    });
+
+    describe('Weighted Maze', () => {
+        const ROWS = 15;
+        const COLS = 21;
+        const run = (seed: number, speed = 6000) => {
+            seedRandom(seed);
+            api().reset(ROWS, COLS);
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed }));
+            act(() => result.current.generate(WEIGHTED_MAZE));
+            return result;
+        };
+        const finish = () => act(() => void raf.flush());
+
+        it('wipes the old terrain before building', () => {
+            run(2, 60);
+            api().setWeight(1, 1, WEIGHT_LEVELS[2]);
+            raf.frame(); // fill-wall
+            expect(noWeights()).toBe(true);
+        });
+
+        it('ends with walls and weights, and gives the board back', () => {
+            run(2);
+            finish();
+            expect(api().cells).toContain(CellKind.wall);
+            expect(noWeights()).toBe(false);
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
+        });
+
+        // proves terrain read the finished maze, not the board from before it
+        it('only puts level weights on open cells', () => {
+            run(2);
+            finish();
+            api().weights.forEach((w, i) => {
+                if (w === DEFAULT_WEIGHT) return;
+                expect(WEIGHT_LEVELS).toContain(w);
+                expect(api().cells[i]).toBe(CellKind.empty);
+            });
+        });
+
+        // a perfect maze is a tree, edges = cells - 1: more edges means Add Loops read the live maze
+        it('has loops', () => {
+            run(2);
+            finish();
+            const { cells } = api();
+            const open = cells.filter((k) => k === CellKind.empty).length;
+            let edges = 0;
+            cells.forEach((k, i) => {
+                if (k !== CellKind.empty) return;
+                if ((i + 1) % COLS !== 0 && cells[i + 1] === CellKind.empty) edges++;
+                if (i + COLS < cells.length && cells[i + COLS] === CellKind.empty) edges++;
+            });
+            expect(edges).toBeGreaterThan(open - 1);
+        });
+
+        it('gives dijkstra a cheaper route than bfs, the point of the preset', () => {
+            let cheaper = 0;
+            for (let seed = 1; seed <= 10; seed++) {
+                run(seed);
+                finish();
+                const snap = getGridSnapshot()!;
+                const best = runToPath(dijkstra(snap)).path.cost;
+                const shortest = runToPath(bfs(snap)).path.cost;
+                expect(best).toBeLessThanOrEqual(shortest);
+                if (best < shortest) cheaper++;
+            }
+            expect(cheaper).toBeGreaterThan(0);
+        });
+
+        it('stops wherever it is when a Clear is picked', () => {
+            const result = run(2, 60);
+            for (let i = 0; i < 5; i++) raf.frame();
+            act(() => result.current.generate('Clear Board'));
+            finish();
+            expect(api().cells).not.toContain(CellKind.wall);
+            expect(noWeights()).toBe(true);
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
         });
     });
 

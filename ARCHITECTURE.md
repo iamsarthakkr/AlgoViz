@@ -129,11 +129,13 @@ Key behaviors baked into the mutators:
   cells; `showMarkers` re-snaps both off any walls, keeping them apart (`nearestEmptyCell`'s `toAvoid`).
 - **Only plain cells carry weight.** Walls and weights are separate arrays because they answer
   different questions (can I enter? what does it cost?), so wall checks everywhere stay unchanged.
-  `setWall`/`fillWalls` reset the weight and `setWeight` refuses walls, markers and anything below
-  `DEFAULT_WEIGHT` (A\* will assume every step costs at least that). A marker dropped on terrain
+  `setWall`/`fillWalls` reset the weight and `setWeight` refuses walls, markers and anything outside
+  `WEIGHT_LEVELS` (the painter only knows those, A\* will assume every step costs at least
+  `DEFAULT_WEIGHT`, and `undefined` would turn into a `NaN` distance that Dijkstra never queues). A marker dropped on terrain
   keeps the stored weight, so the terrain is back when it moves on. It never counts: no path enters
   the start, every path enters the goal once, so `getGridSnapshot` sets both to the default in its
-  copy and the painter draws them plain. `clearWalls` keeps weights for a future "Clear walls".
+  copy and the painter draws them plain. `clearWalls` keeps weights, which is what lets Clear Walls
+  and a `clear-wall` maze leave resetting them to `clear-weights`.
 - `refresh()` is the manual dirty flag — most mutators (all but `reset`/`resize`) don't bump `gridVersion` themselves;
   callers (`CanvasGrid`'s pointer handlers) call `api.refresh()` once per real change, and
   mazes once at the end, so a maze doesn't bump the version per cell.
@@ -298,9 +300,20 @@ type MazeGeneratorEvent =
     | { type: 'clear-wall' }
     | { type: 'carve'; at: Coord }
     | { type: 'wall'; at: Coord }
+    | { type: 'weight'; at: Coord; w: number }
+    | { type: 'clear-weights' }
     | { type: 'done' };
-type MazeGenerator = (rows: number, cols: number) => Generator<MazeGeneratorEvent, void, void>;
+type MazeGenerator = (
+    rows: number,
+    cols: number,
+    getCells: () => CellKind[], // the live board
+) => Generator<MazeGeneratorEvent, void, void>;
 ```
+
+`useMazeGenerator` maps each event to one store call and decides nothing itself, so each generator
+states what it resets: `fill-wall` also drops weights, while `clear-wall` keeps them and a wall maze
+that uses it yields `clear-weights` too. Entries live in `features/mazes/registry.ts`
+(`{ label, run, group }`, group `Mazes | Terrain | Clear`); `mazeMap` and `mazeSections` are derived.
 
 `features/mazes/*.ts`:
 
@@ -317,12 +330,26 @@ type MazeGenerator = (rows: number, cols: number) => Generator<MazeGeneratorEven
   Clears walls, draws the outer boundary, then recursively bisects the interior with a
   vertical or horizontal wall (weighted by `vertical_prob`) that has exactly one carved gap,
   pushing the two sub-chambers onto explicit stacks (`row_stack`/`col_stack`) instead of
-  recursing, until a chamber is too small to divide further. `mazes/index.ts` calls this
+  recursing, until a chamber is too small to divide further. `mazes/registry.ts` calls this
   factory three times with different skew probabilities (0.5 default, 0.7 vertical-skewed,
   0.3 horizontal-skewed) to register three distinct maze options from one implementation.
 
-All maze generators operate on the _lattice coordinates directly_ (no `GridSnapShot`
-needed since they don't read existing walls) — they take `(rows, cols)` and yield
+- `randomWeights.ts`: clears weights, then a coin flip per open cell for a random level.
+- `terrain.ts`: clears weights, then one blob per 100 cells of board, from a shuffled list of open
+  cells (so a nearly walled board can't run out of seeds). Each blob spreads by BFS, so it stays out
+  of cells walled off from its seed, while straight-line distance sets the level and keeps it round.
+  A local level array means a cell is only ever raised, once per level.
+- `loops.ts`: collects interior walls with passages on two opposite sides and walls on the other
+  two, shuffles them and carves `LOOP_SHARE` of them.
+- `clear.ts`: the Clear actions, generators of one or two reset events, so they get `generate()`'s
+  cancel and marker restore for free.
+- `sequence.ts`: `sequence(...gens)` chains generators, dropping each inner `done` and yielding one
+  at the end. `done` runs the hook's cleanup, so an inner one would unlock the grid halfway through.
+  Generators are lazy, so each starts only after the one before has finished and its events are in
+  the store. That's why `getCells` is a getter: Weighted Maze's Add Loops reads the finished maze.
+
+The wall mazes work on the _lattice coordinates directly_ and don't read the board. Only the
+generators that build on it call `getCells()`, once, when they start. All of them yield
 coordinate-only events, which is why `useMazeGenerator` can restore/relocate start & goal
 independently after the run.
 

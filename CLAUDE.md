@@ -8,7 +8,7 @@
 
 AlgoViz is a pathfinding-algorithm visualizer. The user paints walls on a grid, places a
 start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's) and/or a
-maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls), and
+maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls, terrain), and
 watches the algorithm explore the grid cell-by-cell in an animated overlay, ending with the
 traced path. Cells can be weighted: Dijkstra's finds the cheapest path, and the others report what
 theirs really costs.
@@ -95,8 +95,7 @@ confuse them when navigating.
 - Animation: `installFakeRaf()` from `tests/helpers/raf.ts` replaces `requestAnimationFrame`;
   advance with `frame()` / `flush()` (wrap in `act()` when React state updates).
 - Known bugs are pinned with `it.fails(...)` plus a `BUG:` comment explaining the bug and the fix. When
-  you fix one, the `it.fails` starts failing — flip it to `it` (or remove the label from
-  `KNOWN_OUT_OF_BOUNDS` in the maze contract).
+  you fix one, the `it.fails` starts failing — flip it to `it`.
 
 ## Core architectural idea
 
@@ -111,15 +110,21 @@ controls, not algorithm-specific code. See ARCHITECTURE.md for the full flow.
 
 Adding a new algorithm or maze generator is meant to be "write one generator file, register
 it". The contract suites in `tests/` check a new entry automatically; the remaining friction is
-the per-file `id`/`inb`/`isWall` helpers and, for mazes, the parallel labels array.
+the per-file `id`/`inb`/`isWall` helpers.
 
 ## Conventions actually used in this codebase
 
 - Algorithms register as **one entry** in `features/algo/registry.ts` (`algoRegistry`: label, `run`,
   `weighted`, `shortest`, `description`); `algoLabels` and `algorithmMap` are derived from it, and
   array order is the dropdown order. A new entry also needs its flags added to the metadata test
-  in `tests/features/algo/index.test.ts`. Mazes still use a `Record<string, T>` plus a parallel
-  `mazesLabels` array in `features/mazes/index.ts`; keep both in sync when adding one.
+  in `tests/features/algo/index.test.ts`. Mazes work the same way: one entry in
+  `features/mazes/registry.ts` (`mazeRegistry`: label, `run`, `group`), with `mazeMap` and the
+  dropdown's `mazeSections` derived from it. The group sets what the contract demands, so a new
+  entry also needs its group added to the test in `tests/features/mazes/index.test.ts`.
+- Every generator states what it resets, and the hook maps each event to one store call: a wall maze
+  yields `fill-wall`, or `clear-wall` plus `clear-weights`; a terrain entry leaves walls alone.
+  A generator that reads the board calls `getCells()` when it starts, and `sequence(...)` starts each
+  generator only after the one before has finished, so it sees what that one built.
 - Grid coordinates are `{r, c}` (`Coord`), flattened to a 1D index via `r * cols + c`
   everywhere (grid store, algorithms, mazes, painters) — there is no 2D array anywhere.
 - `weights` is a flat array parallel to `cells`: the cost to enter each cell. Walls stay in `cells`
