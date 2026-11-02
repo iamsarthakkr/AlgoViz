@@ -10,3 +10,4 @@ export const inBounds = (coord: Coord, rows: number, cols: number) =>
 
 export const equal = (a: Coord, b: Coord) => a.r === b.r && a.c === b.c;
 export const distance = (a: Coord, b: Coord) => Math.hypot(a.r - b.r, a.c - b.c);
+export const manhattan = (a: Coord, b: Coord) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c);

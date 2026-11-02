@@ -3,7 +3,7 @@
 A pathfinding-algorithm visualizer. Paint walls on a grid, place start/goal markers, then
 watch a pathfinding algorithm (or generate a maze) animate step by step on canvas.
 
-- **Algorithms**: Breadth-first search, Depth-first search, Bidirectional BFS, Dijkstra's
+- **Algorithms**: Breadth-first search, Depth-first search, Bidirectional BFS, Dijkstra's, A\*
 - **Maze / pattern generators**: Weighted Maze (one click: maze, loops and terrain), Recursive
   Division (+ vertical/horizontal skew), Prim's, Randomized Depth-First Search, Random Walls
 - **Terrain and clear actions**: Terrain Blobs, Random Weights, Add Loops; Clear Walls, Clear

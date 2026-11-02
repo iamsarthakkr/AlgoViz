@@ -1,50 +1,25 @@
 // Authored by - Sarthak Kumar
 //
-// min_priority_queue: binary min-heap keyed on `dist`. Used by dijkstra as the frontier.
+// min_priority_queue: binary min-heap ordered by a caller's comparator, so each algorithm picks its
+// own keys. The frontier for dijkstra (distance) and astar (f, then h).
 
-export class min_priority_queue {
-    private heap: { dist: number; id: number }[] = [];
+export type Comparator<T> = (a: T, b: T) => boolean;
 
-    private swap(i: number, j: number) {
-        const h = this.heap;
-        const tmp = h[i];
-        h[i] = h[j];
-        h[j] = tmp;
+export class min_priority_queue<T> {
+    private _heap: T[] = [];
+    private _less: Comparator<T>;
+
+    constructor(less: Comparator<T>) {
+        this._less = less;
     }
 
-    private up(i: number) {
-        const h = this.heap;
-        while (i > 0) {
-            const p = (i - 1) >> 1;
-            if (h[p].dist <= h[i].dist) break;
-            this.swap(i, p);
-            i = p;
-        }
+    push(val: T) {
+        this._heap.push(val);
+        this.up(this._heap.length - 1);
     }
 
-    private down(i: number) {
-        const h = this.heap;
-        const n = h.length;
-        while (true) {
-            const left = (i << 1) + 1;
-            const right = left + 1;
-            let smallest = i;
-
-            if (left < n && h[left].dist < h[smallest].dist) smallest = left;
-            if (right < n && h[right].dist < h[smallest].dist) smallest = right;
-            if (smallest === i) break;
-            this.swap(i, smallest);
-            i = smallest;
-        }
-    }
-
-    push(dist: number, id: number) {
-        this.heap.push({ dist, id });
-        this.up(this.heap.length - 1);
-    }
-
-    pop(): { dist: number; id: number } | null {
-        const h = this.heap;
+    pop(): T | null {
+        const h = this._heap;
         if (!h.length) return null;
         const top = h[0];
         const last = h.pop()!;
@@ -56,10 +31,43 @@ export class min_priority_queue {
     }
 
     size() {
-        return this.heap.length;
+        return this._heap.length;
     }
 
     empty() {
-        return this.heap.length === 0;
+        return this._heap.length === 0;
+    }
+
+    private swap(i: number, j: number) {
+        const h = this._heap;
+        const tmp = h[i];
+        h[i] = h[j];
+        h[j] = tmp;
+    }
+
+    private up(i: number) {
+        const h = this._heap;
+        while (i > 0) {
+            const p = (i - 1) >> 1;
+            if (!this._less(h[i], h[p])) break;
+            this.swap(i, p);
+            i = p;
+        }
+    }
+
+    private down(i: number) {
+        const h = this._heap;
+        const n = h.length;
+        while (true) {
+            const left = (i << 1) + 1;
+            const right = left + 1;
+            let smallest = i;
+
+            if (left < n && this._less(h[left], h[smallest])) smallest = left;
+            if (right < n && this._less(h[right], h[smallest])) smallest = right;
+            if (smallest === i) break;
+            this.swap(i, smallest);
+            i = smallest;
+        }
     }
 }

@@ -34,7 +34,7 @@ be dropped on top of the other marker.
 
 ## 3. Pathfinding algorithms (Visualize / Step / Pause / Skip-to-end / Clear)
 
-Four algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
+Five algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
 with their metadata (whether they read weights, when their path is guaranteed cheapest, a
 one-line description), in `features/algo/registry.ts`; the dropdown, the settings store's default,
 the controller's lookup and the info dialog are all derived from that list:
@@ -45,6 +45,7 @@ the controller's lookup and the info dialog are all derived from that list:
 | Depth-first search   | `dfs.ts`              | Explores greedily, does **not** guarantee shortest path; explicit array-as-stack.                                               |
 | Bidirectional BFS    | `bidirectionalBfs.ts` | Two BFS frontiers grown from start and goal simultaneously, meeting in the middle; typically visits fewer cells than plain BFS. |
 | Dijkstra's           | `dijkstra.ts`         | Reads weights and always finds the cheapest path; binary min-heap priority queue (`store/priority_queue.ts`).                   |
+| A\*                  | `astar.ts`            | Dijkstra guided by a Manhattan-distance estimate: same cheapest path, usually far fewer cells visited.                          |
 
 Each algorithm is a generator that yields one event per unit of work
 (`enqueue`/`visit`/final `path`) rather than computing the answer up front — this is what
@@ -229,6 +230,6 @@ Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5
   one, and the start and goal cells never count. A marker dragged across terrain doesn't damage it.
 - **Mazes** start from a fresh board, so generating one removes all weights. Terrain Blobs and
   Random Weights add terrain to the current walls, and Weighted Maze builds both. See §4.
-- **Algorithms:** Dijkstra reads weights and finds the cheapest path. BFS, DFS and Bidirectional BFS
+- **Algorithms:** Dijkstra and A\* read weights and find the cheapest path. BFS, DFS and Bidirectional BFS
   ignore them, but still report what their path really costs. Editing a weight after a finished run
   re-solves it live. See ARCHITECTURE.md §2 and §4.

@@ -69,6 +69,7 @@ describe('algorithm registry', () => {
             'Depth-first search': { weighted: false, shortest: 'never' },
             'Bidirectional BFS': { weighted: false, shortest: 'unweighted-only' },
             "Dijkstra's": { weighted: true, shortest: 'always' },
+            'A*': { weighted: true, shortest: 'always' },
         });
     });
 });

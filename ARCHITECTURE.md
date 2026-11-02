@@ -254,13 +254,13 @@ type AlgoEvent =
 type PathFinder = (grid: GridSnapShot) => Generator<AlgoEvent, void, void>;
 ```
 
-Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `bidirectionalBfs`) is a
+Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `astar`, `bidirectionalBfs`) is a
 generator function matching `PathFinder`. Shape is consistent across all four:
 
 1. Build local closures over the snapshot: `id(coord)`, `inb(coord)`, `isWall(coord)`,
    `getCoord(id)` — **re-implemented per file** rather than shared.
 2. Seed the frontier structure (`Queue` for bfs/bidirectional, plain array-as-stack for dfs,
-   `min_priority_queue` binary heap for dijkstra), `yield {type:'enqueue', at:start}`.
+   `min_priority_queue` binary heap for dijkstra and astar, ordered by a comparator each passes in), `yield {type:'enqueue', at:start}`.
 3. Main loop: pop next node, `yield {type:'visit', ...}`, expand `neighbors4` (4-directional,
    `features/algo/utils.ts`), track `seen`/`dist` in typed arrays (`Uint8Array`/`Int32Array`
    sized `rows*cols`) and `parent` pointers for path reconstruction, `yield {type:'enqueue'}`
@@ -268,7 +268,7 @@ generator function matching `PathFinder`. Shape is consistent across all four:
 4. Reconstruct the path by walking `parent` back from `goal`, reverse it, and
    `yield {type:'path', nodes, visited}` exactly once, as the generator's final yield.
 
-`dijkstra` is the one algorithm that reads `weights`: stepping into a cell costs `weights[cell]`. It
+`dijkstra` and `astar` are the algorithms that read `weights`: stepping into a cell costs `weights[cell]`. It
 stops when the goal is **popped**, not when it is first enqueued, because with weights the first
 route to reach a cell isn't always the cheapest (BFS can stop on enqueue; Dijkstra can't). On a
 plain grid it matches BFS's path length, at the cost of the heap.
@@ -289,6 +289,19 @@ Algorithms are pure functions of the snapshot — they never touch Zustand direc
 grid-store interaction happens in the runner's event callback (`useAlgoController`), which is
 what lets `getGridSnapshot()` (`features/animations/utils.ts`) safely `.slice()` the cells
 array once up front and hand algorithms an immutable view.
+
+`astar` is `dijkstra` with the heap keyed on `f = g + h`, where `g` is the real cost so far and `h` is
+the Manhattan distance to the goal. Four details matter:
+
+- **`h` must never overestimate.** Every step costs at least `DEFAULT_WEIGHT`, so Manhattan distance
+  can't exceed the real cost. That's why the store refuses anything cheaper than the levels.
+- **The popped value is `f`, not `g`.** The next cost comes from `dist[current]`, never from the heap.
+- **`closed` handles stale heap entries,** not a `d > dist[id]` check. Rebuilding `g` as `f - h` loses
+  cells to rounding as soon as `h` is fractional: with Euclidean `h` it gave wrong costs on most boards.
+  With a consistent `h`, a cell's first pop is already its cheapest, so later copies are skipped.
+- **Ties on `f` go to the smaller `h`.** On an open board every cell between start and goal ties, so
+  without this the search fills that rectangle. With it, a 41-cell path visits 41 cells rather than 148
+  (Dijkstra visits 684). It changes the work done, never the cost.
 
 ## 5. Maze generators & the same pattern, different event set
 

@@ -11,6 +11,7 @@ import { bfs } from './bfs';
 import { dfs } from './dfs';
 import { bidirectionalBfs } from './bidirectionalBfs';
 import { dijkstra } from './dijkstra';
+import { astar } from './astar';
 
 export const algoRegistry: readonly AlgoEntry[] = [
     {
@@ -42,6 +43,14 @@ export const algoRegistry: readonly AlgoEntry[] = [
         shortest: 'always',
         weighted: true,
         description: 'Always expands the cheapest cell next. Finds the cheapest path, even across weighted cells.',
+    },
+    {
+        label: 'A*',
+        run: astar,
+        shortest: 'always',
+        weighted: true,
+        description:
+            'Like Dijkstra, but heads for the goal first. Finds the cheapest path, usually visiting far fewer cells.',
     },
 ];
 

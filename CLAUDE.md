@@ -7,10 +7,10 @@
 ## What this project is
 
 AlgoViz is a pathfinding-algorithm visualizer. The user paints walls on a grid, places a
-start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's) and/or a
+start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's, A\*) and/or a
 maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls, terrain), and
 watches the algorithm explore the grid cell-by-cell in an animated overlay, ending with the
-traced path. Cells can be weighted: Dijkstra's finds the cheapest path, and the others report what
+traced path. Cells can be weighted: Dijkstra's and A\* find the cheapest path, and the others report what
 theirs really costs.
 
 It's a static single-page canvas app (Vite, no router — one view at `/`), one Zustand store for grid data,
@@ -64,7 +64,7 @@ src/
     store/               Zustand stores: useGridStore (grid data), useSettingsStore (UI state)
     CanvasGrid/          The interactive canvas: pointer handling, base-layer draw scheduling
     painters/            Pure canvas-drawing functions (base scene, overlay/algo events, palette)
-    algo/                Pathfinding algorithms as generator functions (bfs, dfs, dijkstra, ...)
+    algo/                Pathfinding algorithms as generator functions (bfs, dfs, dijkstra, astar, ...)
     mazes/               Maze/pattern generators as generator functions (prims, recursiveDivision, ...)
     animations/          The generator "runner" (rAF playback engine) + hooks that drive algo/maze runs
     Toolbar/             AlgoPickers (algorithm/maze dropdowns), PlaybackControls (play/pause/step/clear, speed)
