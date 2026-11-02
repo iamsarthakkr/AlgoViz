@@ -254,6 +254,43 @@ describe('useMazeGenerator', () => {
         });
     });
 
+    describe('Add Loops', () => {
+        const ROWS = 15;
+        const COLS = 21;
+
+        // a Prim's maze from the real registry, then loops on top of it
+        const build = () => {
+            seedRandom(5);
+            api().reset(ROWS, COLS);
+            const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 6000 }));
+            act(() => result.current.generate("Prim's"));
+            act(() => void raf.flush());
+            return result;
+        };
+        const walls = () => api().cells.filter((k) => k === CellKind.wall).length;
+
+        it('opens walls on the live board and gives it back', () => {
+            const result = build();
+            const before = walls();
+            act(() => result.current.generate('Add Loops'));
+            act(() => void raf.flush());
+            expect(walls()).toBeLessThan(before);
+            expect(api().gridLock).toBe(false);
+            expect(api().markersHidden).toBe(false);
+        });
+
+        it('keeps the terrain', () => {
+            const result = build();
+            const cell = api().cells.indexOf(CellKind.empty, COLS + 1);
+            const r = Math.floor(cell / COLS);
+            const c = cell % COLS;
+            expect(api().setWeight(r, c, WEIGHT_LEVELS[2])).toBe(true);
+            act(() => result.current.generate('Add Loops'));
+            act(() => void raf.flush());
+            expect(api().weightAt(r, c)).toBe(WEIGHT_LEVELS[2]);
+        });
+    });
+
     describe('Clear actions', () => {
         const run = (key: string) => {
             const { result } = renderHook(() => useMazeGenerator(mazeMap, { speed: 60 }));

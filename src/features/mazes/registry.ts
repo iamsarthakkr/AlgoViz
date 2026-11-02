@@ -12,6 +12,7 @@ import { recursiveDivision } from './recursiveDivision';
 import { clearBoard, clearWalls, clearWeights } from './clear';
 import { randomWeightsGenerator } from './randomWeights';
 import { terrainGenerator } from './terrain';
+import { loopsGenerator } from './loops';
 
 export const mazeRegistry: readonly MazeEntry[] = [
     { label: 'Recursive Division', run: recursiveDivision(), group: 'Mazes' },
@@ -23,6 +24,7 @@ export const mazeRegistry: readonly MazeEntry[] = [
 
     { label: 'Terrain Blobs', run: terrainGenerator, group: 'Terrain' },
     { label: 'Random Weights', run: randomWeightsGenerator, group: 'Terrain' },
+    { label: 'Add Loops', run: loopsGenerator, group: 'Terrain' },
 
     { label: 'Clear Walls', run: clearWalls, group: 'Clear' },
     { label: 'Clear Weights', run: clearWeights, group: 'Clear' },

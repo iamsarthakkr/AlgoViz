@@ -1,6 +1,7 @@
 // Contract every registered MazeGenerator must honour, so a new entry gets these checks for free.
 import { describe, expect, it } from 'vitest';
 import { mazeMap, mazeRegistry, mazeSections } from '@/features/mazes';
+import { loopsGenerator } from '@/features/mazes/loops';
 import { CellKind } from '@/types/grid';
 import { WEIGHT_LEVELS } from '@/utils/constants';
 import { runMaze } from '../../helpers/grid';
@@ -44,6 +45,7 @@ describe('maze registry', () => {
             'Random Walls': 'Mazes',
             'Random Weights': 'Terrain',
             'Terrain Blobs': 'Terrain',
+            'Add Loops': 'Terrain',
             'Clear Walls': 'Clear',
             'Clear Weights': 'Clear',
             'Clear Board': 'Clear',
@@ -92,11 +94,6 @@ describe.each(mazeRegistry.filter((e) => e.group === 'Terrain'))('$label is terr
     const WALLED = Array.from({ length: ROWS * COLS }, (_, i) => (i % 3 === 0 ? CellKind.wall : CellKind.empty));
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
 
-    it('replaces the existing weights first', () => {
-        seedRandom(1);
-        expect(runMaze(run, ROWS, COLS)[0]).toEqual({ type: 'clear-weights' });
-    });
-
     // the painter and the algorithms only understand the levels
     it('only uses weight levels', () => {
         for (const seed of seeds) {
@@ -105,11 +102,6 @@ describe.each(mazeRegistry.filter((e) => e.group === 'Terrain'))('$label is terr
                 if (e.type === 'weight') expect(WEIGHT_LEVELS).toContain(e.w);
             }
         }
-    });
-
-    it('places some weights', () => {
-        seedRandom(1);
-        expect(runMaze(run, ROWS, COLS).some((e) => e.type === 'weight')).toBe(true);
     });
 
     it('never puts a weight on a wall', () => {
@@ -128,6 +120,22 @@ describe.each(mazeRegistry.filter((e) => e.group === 'Terrain'))('$label is terr
         }
     });
 });
+
+// Loops is in the Terrain group but only opens walls, and keeps the weights already there
+describe.each(mazeRegistry.filter((e) => e.group === 'Terrain' && e.run !== loopsGenerator))(
+    '$label paints weights',
+    ({ run }) => {
+        it('replaces the existing weights first', () => {
+            seedRandom(1);
+            expect(runMaze(run, ROWS, COLS)[0]).toEqual({ type: 'clear-weights' });
+        });
+
+        it('places some weights', () => {
+            seedRandom(1);
+            expect(runMaze(run, ROWS, COLS).some((e) => e.type === 'weight')).toBe(true);
+        });
+    },
+);
 
 describe.each(mazeRegistry.filter((e) => e.group === 'Clear'))('$label only clears', ({ run }) => {
     it('draws nothing', () => {
