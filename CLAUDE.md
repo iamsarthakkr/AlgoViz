@@ -109,8 +109,8 @@ makes play/pause/step/skip-to-end and speed control "free" — they're all just 
 controls, not algorithm-specific code. See ARCHITECTURE.md for the full flow.
 
 Adding a new algorithm or maze generator is meant to be "write one generator file, register
-it". The contract suites in `tests/` check a new entry automatically; the remaining friction is
-the per-file `id`/`inb`/`isWall` helpers.
+it". The contract suites in `tests/` check a new entry automatically, and the coordinate helpers
+(`getId`, `getCoord`, `inBounds`, `isWall`, `equal`) are shared from `utils/coord.ts`.
 
 ## Conventions actually used in this codebase
 

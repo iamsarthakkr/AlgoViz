@@ -254,13 +254,14 @@ type AlgoEvent =
 type PathFinder = (grid: GridSnapShot) => Generator<AlgoEvent, void, void>;
 ```
 
-Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `astar`, `bidirectionalBfs`) is a
-generator function matching `PathFinder`. Shape is consistent across all four:
+Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `astar`, `greedy`, `bidirectionalBfs`) is a
+generator function matching `PathFinder`. Shape is consistent across all of them:
 
-1. Build local closures over the snapshot: `id(coord)`, `inb(coord)`, `isWall(coord)`,
-   `getCoord(id)` — **re-implemented per file** rather than shared.
+1. Index the flat grid with the shared helpers in `utils/coord.ts`: `getId(coord, cols)`,
+   `getCoord(id, cols)`, `inBounds(coord, rows, cols)`, `isWall(cells, id)`, `equal(a, b)`.
+   `isWall` takes the index, which every loop already has for its typed arrays.
 2. Seed the frontier structure (`Queue` for bfs/bidirectional, plain array-as-stack for dfs,
-   `min_priority_queue` binary heap for dijkstra and astar, ordered by a comparator each passes in), `yield {type:'enqueue', at:start}`.
+   `min_priority_queue` binary heap for dijkstra, astar and greedy, ordered by a comparator each passes in), `yield {type:'enqueue', at:start}`.
 3. Main loop: pop next node, `yield {type:'visit', ...}`, expand `neighbors4` (4-directional,
    `features/algo/utils.ts`), track `seen`/`dist` in typed arrays (`Uint8Array`/`Int32Array`
    sized `rows*cols`) and `parent` pointers for path reconstruction, `yield {type:'enqueue'}`

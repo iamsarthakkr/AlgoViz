@@ -4,23 +4,19 @@
 // guarantee the shortest path. Same generator/event shape as the other algorithms.
 
 import { PathFinder } from '@/types/algo';
-import { CellKind, Coord } from '@/types/grid';
-import { equal, neighbors4, pathCost } from './utils';
+import { Coord } from '@/types/grid';
+import { neighbors4, pathCost } from './utils';
+import { equal, getCoord, getId, inBounds, isWall } from '@/utils/coord';
 
 export const dfs: PathFinder = function* (grid) {
     const { rows, cols, cells, start, goal } = grid;
-
-    const id = (s: Coord) => s.r * cols + s.c;
-    const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
-    const isWall = (s: Coord) => cells[id(s)] === CellKind.wall;
-    const getCoord = (id: number): Coord => ({ r: Math.floor(id / cols), c: id % cols });
 
     const stack: Coord[] = [];
     const seen = new Uint8Array(rows * cols);
     const parent = new Int32Array(rows * cols).fill(-1);
 
     stack.push(start);
-    seen[id(start)] = 1;
+    seen[getId(start, cols)] = 1;
     yield { type: 'enqueue', at: start };
 
     let visited = 0;
@@ -29,7 +25,7 @@ export const dfs: PathFinder = function* (grid) {
         if (found) break;
 
         const u = stack.pop()!;
-        const cid = id(u);
+        const cid = getId(u, cols);
 
         visited += 1;
         yield { type: 'visit', at: u };
@@ -43,9 +39,9 @@ export const dfs: PathFinder = function* (grid) {
         for (let i = neighs.length - 1; i >= 0; --i) {
             const v = neighs[i];
 
-            if (!inb(v) || isWall(v)) continue;
-            const nid = id(v);
-            if (seen[nid]) continue;
+            if (!inBounds(v, rows, cols)) continue;
+            const nid = getId(v, cols);
+            if (isWall(cells, nid) || seen[nid]) continue;
 
             seen[nid] = 1;
             parent[nid] = cid;
@@ -62,10 +58,10 @@ export const dfs: PathFinder = function* (grid) {
 
     const path: Coord[] = [];
 
-    if (seen[id(goal)]) {
-        let cur = id(goal);
+    if (seen[getId(goal, cols)]) {
+        let cur = getId(goal, cols);
         while (cur !== -1) {
-            path.push(getCoord(cur));
+            path.push(getCoord(cur, cols));
             cur = parent[cur];
         }
 

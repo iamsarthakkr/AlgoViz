@@ -2,9 +2,10 @@
 //
 // dijkstra: shortest path via a binary min-heap priority queue keyed on distance.
 
-import { CellKind, Coord } from '@/types/grid';
+import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4, pathCost } from './utils';
+import { neighbors4, pathCost } from './utils';
+import { equal, getCoord, getId, inBounds, isWall } from '@/utils/coord';
 import { Comparator, min_priority_queue } from '@/store/priority_queue';
 
 type T = { dist: number; id: number };
@@ -16,16 +17,11 @@ const inf = 1e9;
 export const dijkstra: PathFinder = function* (grid) {
     const { rows, cols, cells, weights, start, goal } = grid;
 
-    const id = (s: Coord) => s.r * cols + s.c;
-    const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
-    const isWall = (s: Coord) => cells[id(s)] === CellKind.wall;
-    const getCoord = (id: number): Coord => ({ r: Math.floor(id / cols), c: id % cols });
-
     const queue = new min_priority_queue<T>(comparator);
     const dist = new Int32Array(rows * cols).fill(inf);
     const parent = new Int32Array(rows * cols).fill(-1);
 
-    const start_id = id(start);
+    const start_id = getId(start, cols);
     dist[start_id] = 0;
     queue.push({ dist: dist[start_id], id: start_id });
 
@@ -34,7 +30,7 @@ export const dijkstra: PathFinder = function* (grid) {
     let visited = 0;
     while (!queue.empty()) {
         const { dist: d, id: curr_id } = queue.pop()!;
-        const node = getCoord(curr_id);
+        const node = getCoord(curr_id, cols);
         if (d > dist[curr_id]) continue;
         visited += 1;
 
@@ -45,8 +41,9 @@ export const dijkstra: PathFinder = function* (grid) {
         yield { type: 'visit', at: node };
 
         for (const neigh of neighbors4(node)) {
-            if (!inb(neigh) || isWall(neigh)) continue;
-            const next_id = id(neigh);
+            if (!inBounds(neigh, rows, cols)) continue;
+            const next_id = getId(neigh, cols);
+            if (isWall(cells, next_id)) continue;
             const w = weights[next_id];
 
             const nd = d + w;
@@ -62,10 +59,10 @@ export const dijkstra: PathFinder = function* (grid) {
 
     const path: Coord[] = [];
 
-    if (dist[id(goal)] < inf) {
-        let cur = id(goal);
+    if (dist[getId(goal, cols)] < inf) {
+        let cur = getId(goal, cols);
         while (cur !== -1) {
-            path.push(getCoord(cur));
+            path.push(getCoord(cur, cols));
             cur = parent[cur];
         }
 

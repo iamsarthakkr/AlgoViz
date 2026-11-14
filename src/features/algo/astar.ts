@@ -5,11 +5,11 @@
 // go to the cell nearer the goal; on an open board most cells tie, and this keeps the search on a line.
 // - closed skips stale heap copies: with this h, a cell's first pop is already its cheapest
 
-import { CellKind, Coord } from '@/types/grid';
+import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4, pathCost } from './utils';
+import { neighbors4, pathCost } from './utils';
 import { Comparator, min_priority_queue } from '@/store/priority_queue';
-import { getId, inBounds, manhattan } from '@/utils/coord';
+import { equal, getCoord, getId, inBounds, isWall, manhattan } from '@/utils/coord';
 
 type T = { dist: number; id: number; tie: number };
 const comparator: Comparator<T> = (a, b) => {
@@ -21,8 +21,6 @@ const inf = 1e9;
 export const astar: PathFinder = function* (grid) {
     const { rows, cols, cells, weights, start, goal } = grid;
 
-    const isWall = (s: Coord) => cells[getId(s, cols)] === CellKind.wall;
-    const getCoord = (id: number): Coord => ({ r: Math.floor(id / cols), c: id % cols });
     const h = (s: Coord) => manhattan(s, goal);
 
     const queue = new min_priority_queue<T>(comparator);
@@ -39,7 +37,7 @@ export const astar: PathFinder = function* (grid) {
     let visited = 0;
     while (!queue.empty()) {
         const { id: currId } = queue.pop()!;
-        const node = getCoord(currId);
+        const node = getCoord(currId, cols);
         if (closed[currId]) continue;
         closed[currId] = 1;
 
@@ -52,8 +50,9 @@ export const astar: PathFinder = function* (grid) {
         yield { type: 'visit', at: node };
 
         for (const neigh of neighbors4(node)) {
-            if (!inBounds(neigh, rows, cols) || isWall(neigh)) continue;
+            if (!inBounds(neigh, rows, cols)) continue;
             const next_id = getId(neigh, cols);
+            if (isWall(cells, next_id)) continue;
             const w = weights[next_id];
 
             const nd = dist[currId] + w;
@@ -72,7 +71,7 @@ export const astar: PathFinder = function* (grid) {
     if (dist[getId(goal, cols)] < inf) {
         let cur = getId(goal, cols);
         while (cur !== -1) {
-            path.push(getCoord(cur));
+            path.push(getCoord(cur, cols));
             cur = parent[cur];
         }
 

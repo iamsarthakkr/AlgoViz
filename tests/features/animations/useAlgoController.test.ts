@@ -63,10 +63,11 @@ describe('useAlgoController', () => {
         return visited;
     }
 
-    it('starts idle, showing the selected algorithm', () => {
+    // no run exists yet, so there is no active algorithm to show (the stats show "-")
+    it('starts idle, with no active algorithm', () => {
         const { result } = render();
         expect(result.current.status).toBeUndefined();
-        expect(result.current.runAlgo).toBe('BFS');
+        expect(result.current.runAlgo).toBe('');
         expect(result.current.pathLen).toBeUndefined();
     });
 

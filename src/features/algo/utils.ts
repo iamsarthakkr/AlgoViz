@@ -7,6 +7,7 @@
 //   Used by every algorithm, so one that ignores weights still reports its true cost
 
 import { Coord, GridSnapShot } from '@/types/grid';
+import { getId } from '@/utils/coord';
 
 export const random = (min: number, max: number) => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -32,8 +33,6 @@ export const shuffle = (a: Coord[]) => {
     }
 };
 
-export const equal = (a: Coord, b: Coord) => a.r === b.r && a.c === b.c;
-
 const create_neighbors = (p: Coord, dr: number[], dc: number[]): Coord[] => {
     const out: Coord[] = [];
     for (let k = 0; k < dr.length; k++) out.push({ r: p.r + dr[k], c: p.c + dc[k] });
@@ -56,8 +55,7 @@ export const pathCost = (path: Coord[], grid: GridSnapShot) => {
     const { cols, weights } = grid;
     let cost = 0;
     path.slice(1).forEach((node) => {
-        const id = node.r * cols + node.c;
-        cost += weights[id];
+        cost += weights[getId(node, cols)];
     });
     return cost;
 };

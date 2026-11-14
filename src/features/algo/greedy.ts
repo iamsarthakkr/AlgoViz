@@ -6,11 +6,11 @@
 // - seen marks a cell when it's first enqueued, like BFS: with no g there's nothing to improve later,
 //   so the first parent is kept
 
-import { CellKind, Coord } from '@/types/grid';
+import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4, pathCost } from './utils';
+import { neighbors4, pathCost } from './utils';
 import { Comparator, min_priority_queue } from '@/store/priority_queue';
-import { getId, inBounds, manhattan } from '@/utils/coord';
+import { equal, getCoord, getId, inBounds, isWall, manhattan } from '@/utils/coord';
 
 type T = { h: number; id: number };
 const comparator: Comparator<T> = (a, b) => a.h < b.h;
@@ -18,8 +18,6 @@ const comparator: Comparator<T> = (a, b) => a.h < b.h;
 export const greedy: PathFinder = function* (grid) {
     const { rows, cols, cells, start, goal } = grid;
 
-    const isWall = (s: Coord) => cells[getId(s, cols)] === CellKind.wall;
-    const getCoord = (id: number): Coord => ({ r: Math.floor(id / cols), c: id % cols });
     const h = (s: Coord) => manhattan(s, goal);
 
     const queue = new min_priority_queue<T>(comparator);
@@ -36,7 +34,7 @@ export const greedy: PathFinder = function* (grid) {
     let found = false;
     while (!queue.empty()) {
         const { id: currId } = queue.pop()!;
-        const node = getCoord(currId);
+        const node = getCoord(currId, cols);
 
         visited += 1;
 
@@ -48,8 +46,9 @@ export const greedy: PathFinder = function* (grid) {
         yield { type: 'visit', at: node };
 
         for (const neigh of neighbors4(node)) {
-            if (!inBounds(neigh, rows, cols) || isWall(neigh)) continue;
+            if (!inBounds(neigh, rows, cols)) continue;
             const next_id = getId(neigh, cols);
+            if (isWall(cells, next_id)) continue;
             if (seen[next_id]) continue;
 
             seen[next_id] = 1;
@@ -64,7 +63,7 @@ export const greedy: PathFinder = function* (grid) {
     if (found) {
         let cur = getId(goal, cols);
         while (cur !== -1) {
-            path.push(getCoord(cur));
+            path.push(getCoord(cur, cols));
             cur = parent[cur];
         }
 

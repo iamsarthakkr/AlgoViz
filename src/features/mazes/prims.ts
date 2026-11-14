@@ -5,14 +5,12 @@
 
 import { Coord } from '@/types/grid';
 import { MazeGenerator } from '@/types/mazeGenerator';
+import { getId, inBounds } from '@/utils/coord';
 import { neighbors4, random, second_neighbors4, shuffle } from '@/features/algo/utils';
 
 // prim's spanning tree (randomized)
 export const prims: MazeGenerator = function* (rows, cols) {
     yield { type: 'fill-wall' };
-
-    const id = (s: Coord) => s.r * cols + s.c;
-    const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
 
     const frontiers: Coord[] = [];
     const seen = new Uint8Array(rows * cols);
@@ -31,13 +29,13 @@ export const prims: MazeGenerator = function* (rows, cols) {
 
     const addFrontiers = (u: Coord) => {
         for (const v of second_neighbors4(u)) {
-            if (inb(v) && !seen[id(v)] && isCell(v)) {
+            if (inBounds(v, rows, cols) && !seen[getId(v, cols)] && isCell(v)) {
                 const mid: Coord = {
                     r: (u.r + v.r) >> 1,
                     c: (u.c + v.c) >> 1,
                 };
-                if (!taken[id(mid)]) {
-                    taken[id(mid)] = 1;
+                if (!taken[getId(mid, cols)]) {
+                    taken[getId(mid, cols)] = 1;
                     frontiers.push(mid);
                 }
             }
@@ -45,7 +43,7 @@ export const prims: MazeGenerator = function* (rows, cols) {
     };
 
     addFrontiers(start);
-    seen[id(start)] = 1;
+    seen[getId(start, cols)] = 1;
     yield { type: 'carve', at: start };
 
     while (frontiers.length > 0) {
@@ -56,16 +54,16 @@ export const prims: MazeGenerator = function* (rows, cols) {
         frontiers.pop();
 
         for (const v of neighbors4(u)) {
-            if (!inb(v) || !seen[id(v)]) continue;
+            if (!inBounds(v, rows, cols) || !seen[getId(v, cols)]) continue;
             // v is on carved side
             const dr = u.r - v.r,
                 dc = u.c - v.c;
             const opp: Coord = { r: v.r + 2 * dr, c: v.c + 2 * dc };
-            if (inb(opp) && !seen[id(opp)] && isCell(opp)) {
+            if (inBounds(opp, rows, cols) && !seen[getId(opp, cols)] && isCell(opp)) {
                 // take v and opp
                 yield { type: 'carve', at: u };
                 yield { type: 'carve', at: opp };
-                seen[id(opp)] = 1;
+                seen[getId(opp, cols)] = 1;
 
                 addFrontiers(opp);
                 break;

@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    equal,
-    neighbors4,
-    pathCost,
-    random,
-    randomEven,
-    randomOdd,
-    second_neighbors4,
-    shuffle,
-} from '@/features/algo/utils';
+import { neighbors4, pathCost, random, randomEven, randomOdd, second_neighbors4, shuffle } from '@/features/algo/utils';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { parseGrid } from '../../helpers/grid';
 import { fixRandom, seedRandom } from '../../helpers/random';
@@ -74,11 +65,6 @@ describe('shuffle', () => {
 });
 
 describe('coordinate helpers', () => {
-    it('equal compares by value', () => {
-        expect(equal({ r: 1, c: 2 }, { r: 1, c: 2 })).toBe(true);
-        expect(equal({ r: 1, c: 2 }, { r: 2, c: 1 })).toBe(false);
-    });
-
     it('neighbors4 returns up, right, down, left', () => {
         expect(neighbors4({ r: 5, c: 5 })).toEqual([
             { r: 4, c: 5 },
