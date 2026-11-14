@@ -70,6 +70,7 @@ describe('algorithm registry', () => {
             'Bidirectional BFS': { weighted: false, shortest: 'unweighted-only' },
             "Dijkstra's": { weighted: true, shortest: 'always' },
             'A*': { weighted: true, shortest: 'always' },
+            'Greedy best-first': { weighted: false, shortest: 'never' },
         });
     });
 });

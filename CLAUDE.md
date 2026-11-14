@@ -7,7 +7,7 @@
 ## What this project is
 
 AlgoViz is a pathfinding-algorithm visualizer. The user paints walls on a grid, places a
-start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's, A\*) and/or a
+start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's, A\*, Greedy best-first) and/or a
 maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls, terrain), and
 watches the algorithm explore the grid cell-by-cell in an animated overlay, ending with the
 traced path. Cells can be weighted: Dijkstra's and A\* find the cheapest path, and the others report what

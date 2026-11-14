@@ -12,6 +12,7 @@ import { dfs } from './dfs';
 import { bidirectionalBfs } from './bidirectionalBfs';
 import { dijkstra } from './dijkstra';
 import { astar } from './astar';
+import { greedy } from './greedy';
 
 export const algoRegistry: readonly AlgoEntry[] = [
     {
@@ -51,6 +52,14 @@ export const algoRegistry: readonly AlgoEntry[] = [
         weighted: true,
         description:
             'Like Dijkstra, but heads for the goal first. Finds the cheapest path, usually visiting far fewer cells.',
+    },
+    {
+        label: 'Greedy best-first',
+        run: greedy,
+        shortest: 'never',
+        weighted: false,
+        description:
+            'Always moves toward whichever cell looks closest to the goal. Very fast, but can take long detours and ignores weights.',
     },
 ];
 
