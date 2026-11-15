@@ -7,7 +7,7 @@
 //   fill-wall drops weights too, clear-wall keeps them (clear-weights does that)
 // - Always autoplays; no pause/step controls are exposed for maze generation
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { createRunner, RunnerApi } from './runner';
 import { getGridSnapshot } from './utils';
@@ -24,9 +24,20 @@ type Options = {
 };
 
 export function useMazeGenerator(registry: MazeMap, opts: Options = {}): MazeGeneratorApi {
-    const [speed] = useState<number>(opts.speed ?? 120);
+    const speed = opts.speed ?? 120;
     const runnerRef = useRef<RunnerApi<MazeGeneratorEvent>>(null);
-    const clearnupRef = useRef<Callback>(null);
+    const cleanupRef = useRef<Callback>(null);
+
+    useEffect(() => {
+        return () => {
+            if (runnerRef.current) {
+                runnerRef.current.pause();
+            }
+            if (cleanupRef.current) {
+                cleanupRef.current();
+            }
+        };
+    }, []);
 
     const generateMaze = useCallback(
         (key: string) => {
@@ -38,9 +49,9 @@ export function useMazeGenerator(registry: MazeMap, opts: Options = {}): MazeGen
                 runnerRef.current = null;
             }
 
-            if (clearnupRef.current) {
-                clearnupRef.current();
-                clearnupRef.current = null;
+            if (cleanupRef.current) {
+                cleanupRef.current();
+                cleanupRef.current = null;
             }
 
             const snap = getGridSnapshot();
@@ -52,7 +63,7 @@ export function useMazeGenerator(registry: MazeMap, opts: Options = {}): MazeGen
             gridApi.setGridLock(true);
             gridApi.hideMarkers();
 
-            clearnupRef.current = () => {
+            cleanupRef.current = () => {
                 // set back start and goal
                 gridApi.showMarkers();
 
@@ -86,9 +97,9 @@ export function useMazeGenerator(registry: MazeMap, opts: Options = {}): MazeGen
                             gridApi.clearWeights();
                             break;
                         case 'done':
-                            if (clearnupRef.current) {
-                                clearnupRef.current();
-                                clearnupRef.current = null;
+                            if (cleanupRef.current) {
+                                cleanupRef.current();
+                                cleanupRef.current = null;
                             }
                             break;
                         default:

@@ -6,7 +6,7 @@
 import { Coord } from '@/types/grid';
 import { MazeGenerator } from '@/types/mazeGenerator';
 import { getId, inBounds } from '@/utils/coord';
-import { neighbors4, random, second_neighbors4, shuffle } from '@/features/algo/utils';
+import { neighbors4, random, secondNeighbors4, shuffle } from '@/features/algo/utils';
 
 // prim's spanning tree (randomized)
 export const prims: MazeGenerator = function* (rows, cols) {
@@ -28,7 +28,7 @@ export const prims: MazeGenerator = function* (rows, cols) {
     };
 
     const addFrontiers = (u: Coord) => {
-        for (const v of second_neighbors4(u)) {
+        for (const v of secondNeighbors4(u)) {
             if (inBounds(v, rows, cols) && !seen[getId(v, cols)] && isCell(v)) {
                 const mid: Coord = {
                     r: (u.r + v.r) >> 1,

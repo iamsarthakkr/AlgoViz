@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { neighbors4, pathCost, random, randomEven, randomOdd, second_neighbors4, shuffle } from '@/features/algo/utils';
+import { neighbors4, pathCost, random, randomEven, randomOdd, secondNeighbors4, shuffle } from '@/features/algo/utils';
 import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { parseGrid } from '../../helpers/grid';
 import { fixRandom, seedRandom } from '../../helpers/random';
@@ -74,8 +74,8 @@ describe('coordinate helpers', () => {
         ]);
     });
 
-    it('second_neighbors4 returns cells two steps away', () => {
-        expect(second_neighbors4({ r: 5, c: 5 })).toEqual([
+    it('secondNeighbors4 returns cells two steps away', () => {
+        expect(secondNeighbors4({ r: 5, c: 5 })).toEqual([
             { r: 3, c: 5 },
             { r: 5, c: 7 },
             { r: 7, c: 5 },

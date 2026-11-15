@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { min_priority_queue } from '@/store/priority_queue';
+import { MinPriorityQueue } from '@/lib/data-structures/priorityQueue';
 
 type Entry = { dist: number; id: number };
-const byDist = () => new min_priority_queue<Entry>((a, b) => a.dist < b.dist);
-import { seedRandom } from '../helpers/random';
+const byDist = () => new MinPriorityQueue<Entry>((a, b) => a.dist < b.dist);
+import { seedRandom } from '../../helpers/random';
 
-describe('min_priority_queue', () => {
+describe('MinPriorityQueue', () => {
     it('returns null when empty', () => {
         const pq = byDist();
         expect(pq.pop()).toBeNull();
@@ -57,7 +57,7 @@ describe('min_priority_queue', () => {
     describe('with a two-key comparator', () => {
         type Tied = Entry & { tie: number };
         const byDistThenTie = () =>
-            new min_priority_queue<Tied>((a, b) => (a.dist !== b.dist ? a.dist < b.dist : a.tie < b.tie));
+            new MinPriorityQueue<Tied>((a, b) => (a.dist !== b.dist ? a.dist < b.dist : a.tie < b.tie));
 
         it('breaks equal distances on the second key', () => {
             const pq = byDistThenTie();

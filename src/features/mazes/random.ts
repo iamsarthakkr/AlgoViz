@@ -7,7 +7,7 @@ import { Coord } from '@/types/grid';
 import { MazeGenerator } from '@/types/mazeGenerator';
 import { shuffle } from '@/features/algo/utils';
 
-const wall_prob = 0.35;
+const wallProb = 0.35;
 export const randomGenerator: MazeGenerator = function* (rows, cols) {
     yield { type: 'clear-wall' };
     yield { type: 'clear-weights' };
@@ -24,7 +24,7 @@ export const randomGenerator: MazeGenerator = function* (rows, cols) {
 
     for (const cell of cells) {
         const prob = Math.random();
-        if (prob <= wall_prob) {
+        if (prob <= wallProb) {
             yield { type: 'wall', at: cell };
         }
     }

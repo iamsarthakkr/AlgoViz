@@ -1,11 +1,11 @@
 // Authored by - Sarthak Kumar
 //
-// min_priority_queue: binary min-heap ordered by a caller's comparator, so each algorithm picks its
+// MinPriorityQueue: binary min-heap ordered by a caller's comparator, so each algorithm picks its
 // own keys. The frontier for dijkstra (distance) and astar (f, then h).
 
 export type Comparator<T> = (a: T, b: T) => boolean;
 
-export class min_priority_queue<T> {
+export class MinPriorityQueue<T> {
     private _heap: T[] = [];
     private _less: Comparator<T>;
 

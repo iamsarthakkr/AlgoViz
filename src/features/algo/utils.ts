@@ -2,7 +2,7 @@
 //
 // algo/utils: shared helpers for pathfinding algorithms and maze generators.
 // - random/randomOdd/randomEven/shuffle: RNG helpers (odd/even used for the maze cell lattice)
-// - neighbors4/second_neighbors4: 4-directional and 2-cell-away neighbor offsets
+// - neighbors4/secondNeighbors4: 4-directional and 2-cell-away neighbor offsets
 // - pathCost: what a path really costs, the weight of every cell after the first (never entered).
 //   Used by every algorithm, so one that ignores weights still reports its true cost
 
@@ -33,7 +33,7 @@ export const shuffle = (a: Coord[]) => {
     }
 };
 
-const create_neighbors = (p: Coord, dr: number[], dc: number[]): Coord[] => {
+const createNeighbors = (p: Coord, dr: number[], dc: number[]): Coord[] => {
     const out: Coord[] = [];
     for (let k = 0; k < dr.length; k++) out.push({ r: p.r + dr[k], c: p.c + dc[k] });
     return out;
@@ -42,13 +42,13 @@ const create_neighbors = (p: Coord, dr: number[], dc: number[]): Coord[] => {
 export const neighbors4 = (p: Coord): Coord[] => {
     const dr = [-1, 0, 1, 0];
     const dc = [0, 1, 0, -1];
-    return create_neighbors(p, dr, dc);
+    return createNeighbors(p, dr, dc);
 };
 
-export const second_neighbors4 = (p: Coord): Coord[] => {
+export const secondNeighbors4 = (p: Coord): Coord[] => {
     const dr = [-2, 0, 2, 0];
     const dc = [0, 2, 0, -2];
-    return create_neighbors(p, dr, dc);
+    return createNeighbors(p, dr, dc);
 };
 
 export const pathCost = (path: Coord[], grid: GridSnapShot) => {

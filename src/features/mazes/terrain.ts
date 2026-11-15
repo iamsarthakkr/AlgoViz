@@ -9,7 +9,7 @@ import { CellKind, Coord } from '@/types/grid';
 import { MazeGenerator } from '@/types/mazeGenerator';
 import { neighbors4, random, shuffle } from '@/features/algo/utils';
 import { distance, getId, inBounds } from '@/utils/coord';
-import { Queue } from '@/store/queue';
+import { Queue } from '@/lib/data-structures/queue';
 import { WEIGHT_LEVELS } from '@/utils/constants';
 
 const MIN_R = 3,

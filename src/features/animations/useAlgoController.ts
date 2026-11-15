@@ -53,6 +53,11 @@ export function useAlgoController(
     registry: AlgoMap, // keyed by label, the same key as useSettingsStore.algoKey
     opts: Options = {},
 ): AlgoController {
+    // primitives, not opts itself: a caller's inline `{ ... }` is a new object every render, and as a
+    // dependency it would rebuild every callback below (and re-run the grid-version effect) each time
+    const animatePath = opts.animatePath ?? true;
+    const pathNps = opts.pathNps ?? 240;
+
     const speed = useSettingsStore((s) => speedToEPS[s.speed]);
     const gridVersion = useGridStore((s) => s.gridVersion);
 
@@ -102,12 +107,12 @@ export function useAlgoController(
                         if (cancelPathAnimRef.current) {
                             cancelPathAnimRef.current();
                         }
-                        cancelPathAnimRef.current = animateFinalPath(ctx, event.nodes, cellSize, opts.pathNps ?? 240);
+                        cancelPathAnimRef.current = animateFinalPath(ctx, event.nodes, cellSize, pathNps);
                     }
                 }
             };
         },
-        [gridRef, opts],
+        [gridRef, pathNps],
     );
 
     const cleanupPreviousRun = useCallback(() => {
@@ -130,7 +135,7 @@ export function useAlgoController(
     }, [gridRef]);
 
     const createRunnerFor = useCallback(
-        (key: string, instant: boolean = opts.animatePath === false) => {
+        (key: string, instant: boolean = !animatePath) => {
             const algo = registry[key];
             const snap = getGridSnapshot();
             if (!algo || !snap) return null;
@@ -161,7 +166,7 @@ export function useAlgoController(
             setStatus(r.getStatus());
             return r;
         },
-        [getEventHandler, cleanupPreviousRun, opts, registry],
+        [getEventHandler, cleanupPreviousRun, animatePath, registry],
     );
 
     // The runner the controls act on. Keeps the active run while it is running (even if another

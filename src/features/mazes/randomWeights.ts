@@ -8,7 +8,7 @@ import { MazeGenerator } from '@/types/mazeGenerator';
 import { random, shuffle } from '@/features/algo/utils';
 import { WEIGHT_LEVELS } from '@/utils/constants';
 
-const weights_prob = 0.3;
+const weightsProb = 0.3;
 
 const getRandomWeight = () => {
     const id = random(0, WEIGHT_LEVELS.length - 1);
@@ -31,7 +31,7 @@ export const randomWeightsGenerator: MazeGenerator = function* (rows, cols, getC
 
     for (const cell of cells) {
         const prob = Math.random();
-        if (prob <= weights_prob) {
+        if (prob <= weightsProb) {
             yield { type: 'weight', at: cell, w: getRandomWeight() };
         }
     }

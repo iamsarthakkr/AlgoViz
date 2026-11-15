@@ -71,6 +71,18 @@ describe('useAlgoController', () => {
         expect(result.current.pathLen).toBeUndefined();
     });
 
+    // Grid passes `{ animatePath: true }` inline, a new object each render; the controls must not be
+    // rebuilt by it, or everything they're passed to re-renders too
+    it('keeps its controls stable when re-rendered with an equal inline opts object', () => {
+        const { result, rerender } = renderHook(() => useAlgoController(gridRef, registry, { animatePath: true }));
+        const { play, step, skipToEnd, clear } = result.current;
+        rerender();
+        expect(result.current.play).toBe(play);
+        expect(result.current.step).toBe(step);
+        expect(result.current.skipToEnd).toBe(skipToEnd);
+        expect(result.current.clear).toBe(clear);
+    });
+
     // the runner finishing on its own (not via step/skipToEnd) must still report done,
     // or the toolbar stays stuck on Pause with Visualize disabled
     it('play locks the grid, animates to completion, then reports done, unlocks and reports the path', () => {

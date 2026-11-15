@@ -23,7 +23,7 @@ describe('recursiveDivision', () => {
         }
     });
 
-    it.each([0.5, 0.7, 0.3])('leaves every open cell connected (vertical_prob %f)', (prob) => {
+    it.each([0.5, 0.7, 0.3])('leaves every open cell connected (verticalProb %f)', (prob) => {
         for (let seed = 1; seed <= 25; seed++) {
             seedRandom(seed);
             const cells = build(prob);
@@ -38,7 +38,7 @@ describe('recursiveDivision', () => {
             for (let c = 1; c < COLS - 1; c += 2) expect(cells[r * COLS + c]).toBe(CellKind.empty);
     });
 
-    it('only splits vertically with vertical_prob = 1, horizontally with 0', () => {
+    it('only splits vertically with verticalProb = 1, horizontally with 0', () => {
         seedRandom(3);
         const vertical = runMaze(recursiveDivision(1), ROWS, COLS);
         seedRandom(3);

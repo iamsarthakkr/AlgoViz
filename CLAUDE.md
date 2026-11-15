@@ -70,7 +70,7 @@ src/
     Toolbar/             AlgoPickers (algorithm/maze dropdowns), PlaybackControls (play/pause/step/clear, speed)
     hooks/               useRaf (coalesce into one rAF callback), useResponsiveGrid (sizes the grid to its box),
                          useInfoModal (info dialog open state + first-visit flag in localStorage)
-  store/                 Plain (non-Zustand) data structures: ring-buffer Queue, binary min-heap
+  lib/data-structures/   Plain (non-Zustand) data structures: ring-buffer Queue, binary MinPriorityQueue
   types/                 Shared TypeScript types (grid, algo, mazeGenerator, settings, common)
   utils/                 Small pure helpers (grid init/snap, grid sizing in layout.ts, clamp, speed presets, constants)
 tests/                   Mirrors src/ one-to-one (src/features/algo/bfs.ts → tests/features/algo/bfs.test.ts)
@@ -80,9 +80,8 @@ tests/                   Mirrors src/ one-to-one (src/features/algo/bfs.ts → t
                          fake ResizeObserver (resize.ts), fake algo controller / maze generator (controllers.ts)
 ```
 
-Note: there are **two unrelated things called "store"** in this repo — `src/store/` (data
-structures: `Queue`, `min_priority_queue`) and `src/features/store/` (Zustand app state). Don't
-confuse them when navigating.
+Note: `src/features/store/` is Zustand app state only. The algorithms' data structures (`Queue`,
+`MinPriorityQueue`) live in `src/lib/data-structures/`.
 
 ## Tests
 

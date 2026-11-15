@@ -9,7 +9,7 @@
 import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
 import { neighbors4, pathCost } from './utils';
-import { Comparator, min_priority_queue } from '@/store/priority_queue';
+import { Comparator, MinPriorityQueue } from '@/lib/data-structures/priorityQueue';
 import { equal, getCoord, getId, inBounds, isWall, manhattan } from '@/utils/coord';
 
 type T = { h: number; id: number };
@@ -20,13 +20,13 @@ export const greedy: PathFinder = function* (grid) {
 
     const h = (s: Coord) => manhattan(s, goal);
 
-    const queue = new min_priority_queue<T>(comparator);
+    const queue = new MinPriorityQueue<T>(comparator);
     const parent = new Int32Array(rows * cols).fill(-1);
     const seen = new Uint8Array(rows * cols);
 
-    const start_id = getId(start, cols);
-    seen[start_id] = 1;
-    queue.push({ h: h(start), id: start_id });
+    const startId = getId(start, cols);
+    seen[startId] = 1;
+    queue.push({ h: h(start), id: startId });
 
     yield { type: 'enqueue', at: start };
 
@@ -47,13 +47,13 @@ export const greedy: PathFinder = function* (grid) {
 
         for (const neigh of neighbors4(node)) {
             if (!inBounds(neigh, rows, cols)) continue;
-            const next_id = getId(neigh, cols);
-            if (isWall(cells, next_id)) continue;
-            if (seen[next_id]) continue;
+            const nextId = getId(neigh, cols);
+            if (isWall(cells, nextId)) continue;
+            if (seen[nextId]) continue;
 
-            seen[next_id] = 1;
-            parent[next_id] = currId;
-            queue.push({ h: h(neigh), id: next_id });
+            seen[nextId] = 1;
+            parent[nextId] = currId;
+            queue.push({ h: h(neigh), id: nextId });
             yield { type: 'enqueue', at: neigh };
         }
     }

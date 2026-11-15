@@ -78,20 +78,20 @@ git push origin main v1.0.1
    `docker login` with a token.
 2. On the VPS, create the app directory with the two files it needs:
 
-   ```bash
-   mkdir -p /srv/apps/algo-viz && cd /srv/apps/algo-viz
-   curl -fsSLO https://raw.githubusercontent.com/iamsarthakkr/AlgoViz/main/compose.yaml
-   curl -fsSL -o .env https://raw.githubusercontent.com/iamsarthakkr/AlgoViz/main/.env.example
-   # edit .env: APP_VERSION (the release to run) and HOST_PORT
-   ```
+    ```bash
+    mkdir -p /srv/apps/algo-viz && cd /srv/apps/algo-viz
+    curl -fsSLO https://raw.githubusercontent.com/iamsarthakkr/AlgoViz/main/compose.yaml
+    curl -fsSL -o .env https://raw.githubusercontent.com/iamsarthakkr/AlgoViz/main/.env.example
+    # edit .env: APP_VERSION (the release to run) and HOST_PORT
+    ```
 
 3. Add the site to the global Caddyfile and reload Caddy:
 
-   ```caddyfile
-   algoviz.example.com {
-       reverse_proxy 127.0.0.1:3002
-   }
-   ```
+    ```caddyfile
+    algoviz.example.com {
+        reverse_proxy 127.0.0.1:3002
+    }
+    ```
 
 ### Deploying a version
 

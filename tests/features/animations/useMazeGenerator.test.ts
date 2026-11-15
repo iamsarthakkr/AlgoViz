@@ -83,6 +83,18 @@ describe('useMazeGenerator', () => {
         expect(api().gridLock).toBe(false);
     });
 
+    // without the unmount cleanup the runner keeps writing walls and the grid stays locked forever
+    it('stops the run and gives the board back when unmounted mid-run', () => {
+        const { result, unmount } = render();
+        act(() => result.current.generate('scripted'));
+        raf.frame(); // fill-wall
+        unmount();
+        raf.flush();
+        expect(api().gridLock).toBe(false);
+        expect(api().markersHidden).toBe(false);
+        expect(api().at(1, 1)).toBe(CellKind.wall); // the carve never ran
+    });
+
     it('ignores unknown generator keys', () => {
         const { result } = render();
         act(() => result.current.generate('missing'));

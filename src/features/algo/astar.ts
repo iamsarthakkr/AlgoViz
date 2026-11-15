@@ -8,7 +8,7 @@
 import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
 import { neighbors4, pathCost } from './utils';
-import { Comparator, min_priority_queue } from '@/store/priority_queue';
+import { Comparator, MinPriorityQueue } from '@/lib/data-structures/priorityQueue';
 import { equal, getCoord, getId, inBounds, isWall, manhattan } from '@/utils/coord';
 
 type T = { dist: number; id: number; tie: number };
@@ -23,14 +23,14 @@ export const astar: PathFinder = function* (grid) {
 
     const h = (s: Coord) => manhattan(s, goal);
 
-    const queue = new min_priority_queue<T>(comparator);
+    const queue = new MinPriorityQueue<T>(comparator);
     const dist = new Int32Array(rows * cols).fill(inf);
     const parent = new Int32Array(rows * cols).fill(-1);
     const closed = new Uint8Array(rows * cols);
 
-    const start_id = getId(start, cols);
-    dist[start_id] = 0;
-    queue.push({ dist: dist[start_id] + h(start), id: start_id, tie: h(start) });
+    const startId = getId(start, cols);
+    dist[startId] = 0;
+    queue.push({ dist: dist[startId] + h(start), id: startId, tie: h(start) });
 
     yield { type: 'enqueue', at: start };
 
@@ -51,16 +51,16 @@ export const astar: PathFinder = function* (grid) {
 
         for (const neigh of neighbors4(node)) {
             if (!inBounds(neigh, rows, cols)) continue;
-            const next_id = getId(neigh, cols);
-            if (isWall(cells, next_id)) continue;
-            const w = weights[next_id];
+            const nextId = getId(neigh, cols);
+            if (isWall(cells, nextId)) continue;
+            const w = weights[nextId];
 
             const nd = dist[currId] + w;
 
-            if (nd < dist[next_id]) {
-                dist[next_id] = nd;
-                parent[next_id] = currId;
-                queue.push({ dist: nd + h(neigh), id: next_id, tie: h(neigh) });
+            if (nd < dist[nextId]) {
+                dist[nextId] = nd;
+                parent[nextId] = currId;
+                queue.push({ dist: nd + h(neigh), id: nextId, tie: h(neigh) });
                 yield { type: 'enqueue', at: neigh };
             }
         }

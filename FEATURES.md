@@ -34,7 +34,7 @@ be dropped on top of the other marker.
 
 ## 3. Pathfinding algorithms (Visualize / Step / Pause / Skip-to-end / Clear)
 
-Five algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
+Six algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
 with their metadata (whether they read weights, when their path is guaranteed cheapest, a
 one-line description), in `features/algo/registry.ts`; the dropdown, the settings store's default,
 the controller's lookup and the info dialog are all derived from that list:
@@ -44,7 +44,7 @@ the controller's lookup and the info dialog are all derived from that list:
 | Breadth-first search | `bfs.ts`              | Guarantees the shortest path on an unweighted grid, ignores weights; ring-buffer `Queue`.                                       |
 | Depth-first search   | `dfs.ts`              | Explores greedily, does **not** guarantee shortest path; explicit array-as-stack.                                               |
 | Bidirectional BFS    | `bidirectionalBfs.ts` | Two BFS frontiers grown from start and goal simultaneously, meeting in the middle; typically visits fewer cells than plain BFS. |
-| Dijkstra's           | `dijkstra.ts`         | Reads weights and always finds the cheapest path; binary min-heap priority queue (`store/priority_queue.ts`).                   |
+| Dijkstra's           | `dijkstra.ts`         | Reads weights and always finds the cheapest path; binary min-heap priority queue (`lib/data-structures/priorityQueue.ts`).      |
 | A\*                  | `astar.ts`            | Dijkstra guided by a Manhattan-distance estimate: same cheapest path, usually far fewer cells visited.                          |
 | Greedy best-first    | `greedy.ts`           | Heap keyed on the Manhattan estimate alone: very few cells visited, but no shortest-path guarantee and ignores weights.         |
 
@@ -88,15 +88,15 @@ section is open at a time, which keeps the menu short on phones.
 
 **Mazes** replace the board, so walls change and weights are wiped:
 
-| Pattern                              | File                                         | Technique                                                                                     |
-| ------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Weighted Maze                        | `sequence.ts`                                | Prim's, then Add Loops, then Terrain Blobs, as one run.                                       |
-| Recursive Division                   | `recursiveDivision.ts` (`vertical_prob=0.5`) | Recursively bisects the interior with single-gap walls, unbiased direction choice.            |
-| Recursive Division (vertical skew)   | same file (`vertical_prob=0.7`)              | Same algorithm, biased toward vertical dividing walls → more horizontally elongated chambers. |
-| Recursive Division (horizontal skew) | same file (`vertical_prob=0.3`)              | Biased toward horizontal dividing walls.                                                      |
-| Prim's                               | `prims.ts`                                   | Randomized minimum-spanning-tree carve over the odd/odd cell lattice.                         |
-| Randomized Depth First Search        | `floodFill.ts`                               | Iterative backtracking carve (classic "growing tree" maze).                                   |
-| Random Walls                         | `random.ts`                                  | Independent per-cell coin flip (35% wall probability), no connectivity guarantee.             |
+| Pattern                              | File                                        | Technique                                                                                     |
+| ------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Weighted Maze                        | `sequence.ts`                               | Prim's, then Add Loops, then Terrain Blobs, as one run.                                       |
+| Recursive Division                   | `recursiveDivision.ts` (`verticalProb=0.5`) | Recursively bisects the interior with single-gap walls, unbiased direction choice.            |
+| Recursive Division (vertical skew)   | same file (`verticalProb=0.7`)              | Same algorithm, biased toward vertical dividing walls → more horizontally elongated chambers. |
+| Recursive Division (horizontal skew) | same file (`verticalProb=0.3`)              | Biased toward horizontal dividing walls.                                                      |
+| Prim's                               | `prims.ts`                                  | Randomized minimum-spanning-tree carve over the odd/odd cell lattice.                         |
+| Randomized Depth First Search        | `randomizedDfs.ts`                          | Iterative backtracking carve (classic "growing tree" maze).                                   |
+| Random Walls                         | `random.ts`                                 | Independent per-cell coin flip (35% wall probability), no connectivity guarantee.             |
 
 **Terrain** builds on the board, so it can run on top of any maze:
 
@@ -137,7 +137,7 @@ For the active run, `useAlgoController` tracks and exposes:
 - `status` — the runner's `AlgoStatus` (`initial` = ready, `running`, `paused`, `done`), or
   `undefined` before the first run. It comes only from the runner (`onStatusChange`).
 - `runAlgo` — the algorithm of the run these numbers belong to (the active run, which can
-  differ from the dropdown's selection until the next run starts).
+  differ from the dropdown's selection until the next run starts); `''` before the first run.
 
 `ui/Stats.tsx` renders them (`Grid.tsx` passes the values as props):
 
@@ -156,8 +156,7 @@ For the active run, `useAlgoController` tracks and exposes:
 Phones show Status, Visited, Path and Cost; Algo is desktop-only, since the header picker names the
 algorithm there (it can briefly differ after a switch mid-run).
 
-Before the first run, Status, Path and Cost show a "-" placeholder (Algo currently shows the selected
-algorithm until the controller's planned `activeRef` refactor leaves it empty). Every item is rendered in every state:
+Before the first run, Algo, Status, Path and Cost show a "-" placeholder. Every item is rendered in every state:
 on phones the stats are an `auto` grid row, so an item appearing or a value wrapping mid-run
 would change the row's height, resize the grid and stop the run. Only the status is an
 `aria-live` region (the visited count changes every frame). `PlaybackControls.tsx` reads

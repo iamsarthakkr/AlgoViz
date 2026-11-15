@@ -3,7 +3,7 @@
 // bfs: breadth-first search. Guarantees shortest path on an unweighted grid.
 // Generator yields {enqueue|visit} per step, terminal {path} once goal is reached/exhausted.
 
-import { Queue } from '@/store/queue';
+import { Queue } from '@/lib/data-structures/queue';
 import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
 import { neighbors4, pathCost } from './utils';

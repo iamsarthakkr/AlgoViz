@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bfs } from '@/features/algo/bfs';
 import { dijkstra } from '@/features/algo/dijkstra';
-import { floodFill } from '@/features/mazes/floodFill';
+import { randomizedDfs } from '@/features/mazes/randomizedDfs';
 import { loopsGenerator } from '@/features/mazes/loops';
 import { prims } from '@/features/mazes/prims';
 import { recursiveDivision } from '@/features/mazes/recursiveDivision';
@@ -18,7 +18,7 @@ const LOOP_SHARE = 0.12;
 
 const MAZES: [string, MazeGenerator][] = [
     ["Prim's", prims],
-    ['Randomized DFS', floodFill],
+    ['Randomized DFS', randomizedDfs],
     ['Recursive Division', recursiveDivision()],
 ];
 
