@@ -1,15 +1,18 @@
 import { CellKind, Coord, GridSnapShot } from '@/types/grid';
+import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { AlgoEvent, AlgoGenerator, PathEvent } from '@/types/algo';
-import { MazeGeneratorEvent } from '@/types/mazeGenerator';
+import { MazeGenerator, MazeGeneratorEvent } from '@/types/mazeGenerator';
 
 /**
  * Builds a grid snapshot from an ASCII picture:
- *   '.' empty, '#' wall, 'S' start, 'G' goal
+ *   '.' empty, '#' wall, 'S' start, 'G' goal,
+ *   '1' / '2' / '3' a weighted cell at WEIGHT_LEVELS[0] / [1] / [2] (light / medium / heavy)
  */
 export function parseGrid(picture: string[]): GridSnapShot {
     const rows = picture.length;
     const cols = picture[0].length;
     const cells: CellKind[] = [];
+    const weights: number[] = [];
     let start: Coord | null = null;
     let goal: Coord | null = null;
 
@@ -17,22 +20,55 @@ export function parseGrid(picture: string[]): GridSnapShot {
         if (line.length !== cols) throw new Error(`row ${r} has ${line.length} cols, expected ${cols}`);
         [...line].forEach((ch, c) => {
             cells.push(ch === '#' ? CellKind.wall : CellKind.empty);
+            const level = '123'.indexOf(ch);
+            weights.push(level >= 0 ? WEIGHT_LEVELS[level] : DEFAULT_WEIGHT);
             if (ch === 'S') start = { r, c };
             if (ch === 'G') goal = { r, c };
         });
     });
     if (!start || !goal) throw new Error('picture needs both S and G');
 
-    return { gridVersion: 0, rows, cols, cellSize: 10, cells, start, goal, gridLock: false };
+    return {
+        gridVersion: 0,
+        rows,
+        cols,
+        cellSize: 10,
+        cells,
+        weights,
+        start,
+        goal,
+        gridLock: false,
+    };
 }
 
 export function emptyGrid(rows: number, cols: number, start: Coord, goal: Coord): GridSnapShot {
     const cells: CellKind[] = Array(rows * cols).fill(CellKind.empty);
-    return { gridVersion: 0, rows, cols, cellSize: 10, cells, start, goal, gridLock: false };
+    const weights: number[] = Array(rows * cols).fill(DEFAULT_WEIGHT);
+    return {
+        gridVersion: 0,
+        rows,
+        cols,
+        cellSize: 10,
+        cells,
+        weights,
+        start,
+        goal,
+        gridLock: false,
+    };
 }
 
 export function collect<T>(gen: Generator<T, void, void>): T[] {
     return [...gen];
+}
+
+/** Runs a maze generator to the end, on an open board unless given one. */
+export function runMaze(
+    gen: MazeGenerator,
+    rows: number,
+    cols: number,
+    cells: CellKind[] = Array(rows * cols).fill(CellKind.empty),
+): MazeGeneratorEvent[] {
+    return collect(gen(rows, cols, () => cells));
 }
 
 export function runToPath(gen: AlgoGenerator): { events: AlgoEvent[]; path: PathEvent } {
@@ -66,6 +102,41 @@ export function referenceDistance(grid: GridSnapShot): number {
         }
     }
     return dist[goal.r * cols + goal.c];
+}
+
+/** What a path really costs: the weight of every cell entered, so every cell but the first. */
+export function costOf(grid: GridSnapShot, nodes: Coord[]): number {
+    return nodes.slice(1).reduce((sum, p) => sum + grid.weights[p.r * grid.cols + p.c], 0);
+}
+
+/** Reference cheapest cost from start to goal; -1 when unreachable. Repeated relaxation, so it shares nothing with dijkstra. */
+export function referenceCost(grid: GridSnapShot): number {
+    const { rows, cols, cells, weights, start, goal } = grid;
+    const dist = new Array(rows * cols).fill(Infinity);
+    dist[start.r * cols + start.c] = 0;
+    for (let changed = true; changed;) {
+        changed = false;
+        for (let k = 0; k < dist.length; k++) {
+            if (dist[k] === Infinity) continue;
+            const u = { r: Math.floor(k / cols), c: k % cols };
+            for (const [dr, dc] of [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ]) {
+                const v = { r: u.r + dr, c: u.c + dc };
+                const next = v.r * cols + v.c;
+                if (!inBounds(grid, v) || cells[next] === CellKind.wall) continue;
+                if (dist[k] + weights[next] < dist[next]) {
+                    dist[next] = dist[k] + weights[next];
+                    changed = true;
+                }
+            }
+        }
+    }
+    const cost = dist[goal.r * cols + goal.c];
+    return cost === Infinity ? -1 : cost;
 }
 
 /** Throws with a readable message unless `nodes` is a walkable start→goal path. */

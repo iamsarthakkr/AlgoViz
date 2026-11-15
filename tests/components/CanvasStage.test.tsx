@@ -17,6 +17,14 @@ describe('CanvasStage', () => {
         expect(overlay.style.pointerEvents).toBe('none');
     });
 
+    // blending, not covering, is what keeps weights, grid lines and markers visible through a run
+    it('blends the overlay with the base', () => {
+        const { container } = render(<CanvasStage rows={3} cols={4} cellSize={10} />);
+        const [base, overlay] = container.querySelectorAll('canvas');
+        expect(overlay.style.mixBlendMode).toBe('multiply');
+        expect(base.style.mixBlendMode).toBeFalsy();
+    });
+
     it('scales the backing store by devicePixelRatio and draws in logical pixels', () => {
         window.devicePixelRatio = 2;
         const ref = createRef<CanvasStageHandle>();

@@ -7,7 +7,7 @@ import { bfs } from '@/features/algo/bfs';
 import { dfs } from '@/features/algo/dfs';
 import { lightPalette } from '@/features/painters';
 import { AlgoStatus } from '@/types/algo';
-import { CellKind } from '@/types/grid';
+import { WEIGHT_LEVELS } from '@/utils/constants';
 import { createMockCtx, MockCtx } from '../../helpers/canvas';
 import { installFakeRaf } from '../../helpers/raf';
 
@@ -63,11 +63,24 @@ describe('useAlgoController', () => {
         return visited;
     }
 
-    it('starts idle, showing the selected algorithm', () => {
+    // no run exists yet, so there is no active algorithm to show (the stats show "-")
+    it('starts idle, with no active algorithm', () => {
         const { result } = render();
         expect(result.current.status).toBeUndefined();
-        expect(result.current.runAlgo).toBe('BFS');
+        expect(result.current.runAlgo).toBe('');
         expect(result.current.pathLen).toBeUndefined();
+    });
+
+    // Grid passes `{ animatePath: true }` inline, a new object each render; the controls must not be
+    // rebuilt by it, or everything they're passed to re-renders too
+    it('keeps its controls stable when re-rendered with an equal inline opts object', () => {
+        const { result, rerender } = renderHook(() => useAlgoController(gridRef, registry, { animatePath: true }));
+        const { play, step, skipToEnd, clear } = result.current;
+        rerender();
+        expect(result.current.play).toBe(play);
+        expect(result.current.step).toBe(step);
+        expect(result.current.skipToEnd).toBe(skipToEnd);
+        expect(result.current.clear).toBe(clear);
     });
 
     // the runner finishing on its own (not via step/skipToEnd) must still report done,
@@ -149,15 +162,15 @@ describe('useAlgoController', () => {
 
     it('reports a path length of 0 when the goal is unreachable', () => {
         const api = useGridStore.getState();
-        for (let r = 0; r < 5; r++) api.setCell(r, 2, CellKind.wall);
+        for (let r = 0; r < 5; r++) api.setWall(r, 2);
         const { result } = render();
         act(() => result.current.skipToEnd());
         expect(result.current.status).toBe(AlgoStatus.done);
         expect(result.current.pathLen).toBe(0);
     });
 
-    it('does nothing while start or goal is hidden', () => {
-        useGridStore.getState().setStart(-1, -1);
+    it('does nothing while the markers are hidden', () => {
+        useGridStore.getState().hideMarkers();
         const { result } = render();
         act(() => result.current.play());
         expect(result.current.status).toBeUndefined();
@@ -304,7 +317,7 @@ describe('useAlgoController', () => {
             select('DFS');
 
             act(() => {
-                useGridStore.getState().setCell(2, 2, CellKind.wall);
+                useGridStore.getState().setWall(2, 2);
                 useGridStore.getState().refresh();
             });
             expect(result.current.runAlgo).toBe('BFS');
@@ -353,7 +366,7 @@ describe('useAlgoController', () => {
         act(() => result.current.skipToEnd());
 
         act(() => {
-            useGridStore.getState().setCell(2, 2, CellKind.wall);
+            useGridStore.getState().setWall(2, 2);
             useGridStore.getState().refresh();
         });
         expect(result.current.status).toBe(AlgoStatus.done);
@@ -366,6 +379,64 @@ describe('useAlgoController', () => {
         act(() => useGridStore.getState().refresh());
         expect(result.current.status).toBe(AlgoStatus.initial);
         expect(result.current.pathLen).toBeUndefined();
+    });
+
+    describe('path cost', () => {
+        const STEPS = BFS_PATH - 1; // plain cells cost 1 each, and the start isn't entered
+        const HEAVY = WEIGHT_LEVELS[WEIGHT_LEVELS.length - 1];
+        const onPath = { r: 2, c: 2 }; // the middle of the straight BFS path
+
+        it('is unknown until a path is found', () => {
+            const { result } = render();
+            expect(result.current.pathCost).toBeUndefined();
+            act(() => result.current.play());
+            expect(result.current.pathCost).toBeUndefined();
+        });
+
+        it('reports the cost of the finished path', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS);
+        });
+
+        it('is cleared along with the run', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            act(() => result.current.clear());
+            expect(result.current.pathCost).toBeUndefined();
+        });
+
+        // BFS ignores weights while searching, but must report what its path really costs
+        it('counts weights on the path, even for an algorithm that ignores them', () => {
+            useGridStore.getState().setWeight(onPath.r, onPath.c, HEAVY);
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS - 1 + HEAVY);
+        });
+
+        it('re-solves when a weight is edited after a finished run', () => {
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            act(() => {
+                useGridStore.getState().setWeight(onPath.r, onPath.c, HEAVY);
+                useGridStore.getState().refresh();
+            });
+            expect(result.current.status).toBe(AlgoStatus.done);
+            expect(result.current.pathCost).toBe(STEPS - 1 + HEAVY);
+        });
+
+        // no path enters the start and every path enters the goal once, so marker terrain can't matter
+        it('ignores terrain stored under the markers', () => {
+            const api = useGridStore.getState();
+            const { start, goal } = api;
+            api.setWeight(start.r, start.c + 1, HEAVY);
+            api.setWeight(goal.r, goal.c - 1, HEAVY);
+            api.setStart(start.r, start.c + 1);
+            api.setGoal(goal.r, goal.c - 1);
+            const { result } = render();
+            act(() => result.current.skipToEnd());
+            expect(result.current.pathCost).toBe(STEPS - 2);
+        });
     });
 
     // A resize bumps gridVersion (the overlay was wiped and the snapshot's cellSize is stale), so a

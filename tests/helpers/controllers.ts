@@ -10,6 +10,7 @@ export function fakeAlgoController(overrides: Partial<AlgoController> = {}): Alg
         status: undefined,
         pathLen: undefined,
         visitedApprox: 0,
+        pathCost: undefined,
         clear: vi.fn(),
         play: vi.fn(),
         pause: vi.fn(),

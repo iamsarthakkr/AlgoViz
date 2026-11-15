@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Grid from '@/ui/Grid';
-import { useGridStore } from '@/features/store';
+import { useGridStore, useSettingsStore } from '@/features/store';
 import { lightPalette } from '@/features/painters';
-import { mazesLabels } from '@/features/mazes';
+import { mazeRegistry } from '@/features/mazes';
 import { algoLabels } from '@/features/algo';
 import { CellKind } from '@/types/grid';
+import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
 import { MockCtx } from '../helpers/canvas';
 import { installFakeRaf } from '../helpers/raf';
 import { seedRandom } from '../helpers/random';
@@ -56,6 +57,37 @@ describe('Grid page', () => {
             render(<Grid />);
             expect(screen.getByRole('main').querySelectorAll('canvas')).toHaveLength(2);
         });
+    });
+
+    // the legend's palette and the grid share the settings store's tool
+    it('picking a weight in the legend makes the grid paint that weight', async () => {
+        render(<Grid />);
+        const medium = WEIGHT_LEVELS[1];
+        await userEvent.click(screen.getByRole('button', { name: new RegExp(`cost ${medium}$`) }));
+        expect(useSettingsStore.getState().tool).toEqual({ type: 'weight', weight: medium });
+        expect(screen.getByRole('button', { name: new RegExp(`cost ${medium}$`) })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+
+        // CanvasGrid's wrapper (the element with the pointer handlers) wraps the canvas stage
+        const surface = screen.getByRole('main').querySelector('canvas')!.parentElement!.parentElement!;
+        const { cellSize } = useGridStore.getState();
+        fireEvent.pointerDown(surface, { clientX: cellSize / 2, clientY: cellSize / 2, pointerId: 1 });
+        expect(useGridStore.getState().weights[0]).toBe(medium);
+    });
+
+    // the default algorithm ignores weights, which only matters once the grid has some
+    it('turns the algorithm note red once the grid has weights, and back when they are gone', () => {
+        render(<Grid />);
+        const note = () => screen.getByRole('complementary', { name: 'Stats' }).querySelector('p')!;
+        expect(note()).not.toHaveClass('text-red-700');
+
+        act(() => void useGridStore.getState().setWeight(0, 0, WEIGHT_LEVELS[0]));
+        expect(note()).toHaveClass('text-red-700');
+
+        act(() => void useGridStore.getState().clearWeights());
+        expect(note()).not.toHaveClass('text-red-700');
     });
 
     // the toolbar's info button and the InfoModal share the page's open state (useInfoModal)
@@ -113,6 +145,8 @@ describe('Grid page', () => {
         expect(Number(value('Visited')!.textContent)).toBeGreaterThan(0);
         // path cells include both endpoints; the panel shows steps between them
         expect(value('Path')).toHaveTextContent(String(expectedPathLength() - 1));
+        // plain cells cost 1 each, so the cost equals the steps
+        expect(value('Cost')).toHaveTextContent(String(expectedPathLength() - 1));
     });
 
     // Resizing wipes the canvas and the run is re-solved at the new size; the repaint must come
@@ -200,16 +234,51 @@ describe('Grid page', () => {
             seedRandom(3);
             render(<Grid />);
             const user = userEvent.setup();
-            const maze = mazesLabels[0];
+            const maze = mazeRegistry[0].label;
 
             await user.click(within(button('Mazes & Patterns').parentElement!).getByText(maze));
             expect(useGridStore.getState().gridLock).toBe(true);
 
             act(() => void raf.flush());
-            const { cells, gridLock, validStart, validGoal } = useGridStore.getState();
+            const { cells, gridLock, markersHidden } = useGridStore.getState();
             expect(gridLock).toBe(false);
             expect(cells).toContain(CellKind.wall);
-            expect(validStart() && validGoal()).toBe(true);
+            expect(markersHidden).toBe(false);
+        });
+
+        describe('menu actions on the real store', () => {
+            const pick = async (label: string) => {
+                await userEvent.setup().click(within(button('Mazes & Patterns').parentElement!).getByText(label));
+                act(() => void raf.flush());
+            };
+            const store = () => useGridStore.getState();
+
+            beforeEach(() => {
+                render(<Grid />);
+                store().setWall(0, 0);
+                store().setWeight(0, 1, WEIGHT_LEVELS[2]);
+            });
+
+            it('Clear Board empties the board', async () => {
+                await pick('Clear Board');
+                expect(store().cells).not.toContain(CellKind.wall);
+                expect(store().weightAt(0, 1)).toBe(DEFAULT_WEIGHT);
+                expect(store().gridLock).toBe(false);
+            });
+
+            it('Clear Weights keeps the walls', async () => {
+                await pick('Clear Weights');
+                expect(store().at(0, 0)).toBe(CellKind.wall);
+                expect(store().weightAt(0, 1)).toBe(DEFAULT_WEIGHT);
+            });
+
+            it('Random Weights keeps the walls and adds terrain', async () => {
+                seedRandom(3);
+                await pick('Random Weights');
+                expect(store().at(0, 0)).toBe(CellKind.wall);
+                expect(store().weights.some((w) => WEIGHT_LEVELS.includes(w))).toBe(true);
+                expect(store().markersHidden).toBe(false);
+            });
         });
     });
 });

@@ -1,8 +1,8 @@
 // Authored by - Sarthak Kumar
 //
-// recursiveDivision: a *factory* (vertical_prob) -> MazeGenerator. Recursively bisects
-// the interior with single-gap walls (vertical or horizontal, weighted by vertical_prob),
-// using explicit stacks instead of recursion. mazes/index.ts calls this 3x with different
+// recursiveDivision: a *factory* (verticalProb) -> MazeGenerator. Recursively bisects
+// the interior with single-gap walls (vertical or horizontal, weighted by verticalProb),
+// using explicit stacks instead of recursion. mazes/registry.ts calls this 3x with different
 // skew probabilities to register three distinct dropdown entries from one implementation.
 
 import { MazeGenerator } from '@/types/mazeGenerator';
@@ -14,9 +14,10 @@ type Range = {
 };
 
 // recursive Division maze generator
-export const recursiveDivision = (vertical_prob: number = 0.5): MazeGenerator =>
+export const recursiveDivision = (verticalProb: number = 0.5): MazeGenerator =>
     function* (rows, cols) {
         yield { type: 'clear-wall' };
+        yield { type: 'clear-weights' };
 
         // set boundary
         // top
@@ -36,54 +37,54 @@ export const recursiveDivision = (vertical_prob: number = 0.5): MazeGenerator =>
             yield { type: 'wall', at: { r, c: 0 } };
         }
 
-        const row_stack: Range[] = [];
-        const col_stack: Range[] = [];
+        const rowStack: Range[] = [];
+        const colStack: Range[] = [];
 
-        row_stack.push({ from: 1, to: rows - 2 });
-        col_stack.push({ from: 1, to: cols - 2 });
+        rowStack.push({ from: 1, to: rows - 2 });
+        colStack.push({ from: 1, to: cols - 2 });
 
-        while (row_stack.length > 0) {
-            const { from: row_from, to: row_to } = row_stack[row_stack.length - 1];
-            const { from: col_from, to: col_to } = col_stack[col_stack.length - 1];
-            row_stack.pop();
-            col_stack.pop();
+        while (rowStack.length > 0) {
+            const { from: rowFrom, to: rowTo } = rowStack[rowStack.length - 1];
+            const { from: colFrom, to: colTo } = colStack[colStack.length - 1];
+            rowStack.pop();
+            colStack.pop();
 
-            if (row_to - row_from < 2 || col_to - col_from < 2) {
+            if (rowTo - rowFrom < 2 || colTo - colFrom < 2) {
                 continue;
             }
 
             // pick wall
             const p = Math.random();
-            if (p <= vertical_prob) {
+            if (p <= verticalProb) {
                 // draw vertical wall
-                const c = randomEven(col_from, col_to); // at even column
-                const r = randomOdd(row_from, row_to); // carve at odd col
+                const c = randomEven(colFrom, colTo); // at even column
+                const r = randomOdd(rowFrom, rowTo); // carve at odd col
 
-                for (let rr = row_from; rr <= row_to; rr++) {
+                for (let rr = rowFrom; rr <= rowTo; rr++) {
                     if (rr === r) continue;
                     yield { type: 'wall', at: { r: rr, c } };
                 }
 
-                row_stack.push({ from: row_from, to: row_to });
-                col_stack.push({ from: col_from, to: c - 1 });
+                rowStack.push({ from: rowFrom, to: rowTo });
+                colStack.push({ from: colFrom, to: c - 1 });
 
-                row_stack.push({ from: row_from, to: row_to });
-                col_stack.push({ from: c + 1, to: col_to });
+                rowStack.push({ from: rowFrom, to: rowTo });
+                colStack.push({ from: c + 1, to: colTo });
             } else {
                 // draw horizontal wall
-                const r = randomEven(row_from, row_to); // at even row
-                const c = randomOdd(col_from, col_to); // carve at odd col
+                const r = randomEven(rowFrom, rowTo); // at even row
+                const c = randomOdd(colFrom, colTo); // carve at odd col
 
-                for (let cc = col_from; cc <= col_to; cc++) {
+                for (let cc = colFrom; cc <= colTo; cc++) {
                     if (cc === c) continue;
                     yield { type: 'wall', at: { r, c: cc } };
                 }
 
-                row_stack.push({ from: row_from, to: r - 1 });
-                col_stack.push({ from: col_from, to: col_to });
+                rowStack.push({ from: rowFrom, to: r - 1 });
+                colStack.push({ from: colFrom, to: colTo });
 
-                row_stack.push({ from: r + 1, to: row_to });
-                col_stack.push({ from: col_from, to: col_to });
+                rowStack.push({ from: r + 1, to: rowTo });
+                colStack.push({ from: colFrom, to: colTo });
             }
         }
 

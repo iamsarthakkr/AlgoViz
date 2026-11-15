@@ -10,7 +10,7 @@
 import { Dropdown } from '@/components/Dropdown';
 import { algoLabels } from '@/features/algo';
 import { AlgoController, MazeGeneratorApi } from '@/features/animations';
-import { mazesLabels } from '@/features/mazes';
+import { mazeSections } from '@/features/mazes';
 import { useSettingsStore } from '@/features/store';
 
 type Props = {
@@ -47,9 +47,9 @@ export const AlgoPickers = ({ algo, maze }: Props) => {
                     </>
                 }
                 label="Mazes & Patterns"
-                options={mazesLabels}
+                sections={mazeSections}
                 onSelect={onGenerateMaze}
-                className="flex-1 min-w-0 xl:flex-none xl:w-50 font-semibold"
+                className="flex-1 min-w-0 xl:flex-none xl:w-50 font-semibold d-dropdown-end xl:d-dropdown-start"
             />
         </>
     );

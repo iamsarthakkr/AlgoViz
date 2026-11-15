@@ -17,21 +17,33 @@ import { CanvasGrid, CanvasGridHandle } from '@/features/CanvasGrid';
 import { PlaybackControls, Toolbar } from '@/features/Toolbar';
 import { useResponsiveGrid } from '@/features/hooks/useResponsiveGrid';
 import { useAlgoController, useMazeGenerator } from '@/features/animations';
-import { mazes } from '@/features/mazes';
-import { algorithms } from '@/features/algo';
+import { algoRegistry, algorithmMap } from '@/features/algo';
+import { useInfoModal } from '@/features/hooks/useInfoModal';
+import { useGridStore, useSettingsStore } from '@/features/store';
+import { DEFAULT_WEIGHT } from '@/utils/constants';
+import { mazeMap } from '@/features/mazes';
 import { Stats } from './Stats';
 import { Legend } from './Legend';
 import { InfoModal } from './InfoModal';
-import { useInfoModal } from '@/features/hooks/useInfoModal';
 
 export default function GridPage() {
     const gridRef = useRef<CanvasGridHandle>(null);
     const boxRef = useRef<HTMLDivElement>(null);
     const { modalOpen, toggleModal, onModalClosed } = useInfoModal();
-    const algoController = useAlgoController(gridRef, algorithms, {
+    const algoController = useAlgoController(gridRef, algorithmMap, {
         animatePath: true,
     });
-    const mazeGenerator = useMazeGenerator(mazes);
+    const mazeGenerator = useMazeGenerator(mazeMap);
+    const drawTool = useSettingsStore((s) => s.tool);
+
+    const shortest = useSettingsStore((s) => {
+        const currAlgo = s.algoKey;
+        const algo = algoRegistry.find((entry) => entry.label === currAlgo);
+        if (!algo) return null;
+        return algo.shortest;
+    });
+    const selectedAlgo = useSettingsStore((s) => s.algoKey);
+    const gridHasWeights = useGridStore((s) => s.weights.some((w) => w !== DEFAULT_WEIGHT));
 
     useResponsiveGrid(boxRef);
 
@@ -56,12 +68,20 @@ export default function GridPage() {
 
             <Stats
                 algo={algoController.runAlgo}
+                selectedAlgo={selectedAlgo}
                 status={algoController.status}
                 visited={algoController.visitedApprox}
                 pathLen={algoController.pathLen}
+                pathCost={algoController.pathCost}
+                shortest={shortest}
+                gridHasWeights={gridHasWeights}
                 className="[grid-area:stats] p-4"
             />
-            <Legend className="[grid-area:legend] p-4" />
+            <Legend
+                tool={drawTool}
+                onSelectTool={useSettingsStore.getState().setTool}
+                className="[grid-area:legend] p-4"
+            />
 
             <div className="[grid-area:controls] bg-primary flex items-center px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:justify-end xl:py-2">
                 <PlaybackControls algo={algoController} />

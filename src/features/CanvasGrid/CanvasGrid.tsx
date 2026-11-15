@@ -1,16 +1,19 @@
 // Authored by - Sarthak Kumar
 //
 // CanvasGrid: the interactive grid surface — owns pointer input and base-layer redraws.
-// - Pointer handlers: paint walls, drag start/goal markers. A drag erases if it starts on a wall
-//   (so touch can erase) or uses right-click/Alt; the brush is fixed for the whole drag
+// - Pointer handlers paint with the settings store's tool (walls or a weight level) and drag the
+//   start/goal markers. A drag erases the tool's layer if it starts on a matching cell (a wall, or the
+//   same weight level; so touch can erase) or uses right-click/Alt; that choice is fixed for the drag
+// - refresh() (gridVersion bump) only when a paint or marker move actually changed the grid:
+//   pointermove fires many times per cell, and each bump re-solves a finished run
 // - Redraws the base canvas via drawBaseScene whenever grid state changes (debounced via useRaf)
 // - Exposes CanvasGridHandle (ctx getters, clearOverlay, redrawBase) for the toolbar/animation hooks
 // - Respects gridLock: pointer editing is a no-op while an algorithm/maze run owns the grid
 
 import React, { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useShallow } from 'zustand/shallow';
-import { Brush, CellKind, DragMode } from '@/types/grid';
-import { useGridStore } from '@/features/store';
+import { CellKind, DragMode } from '@/types/grid';
+import { useGridStore, useSettingsStore } from '@/features/store';
 import { CanvasStage, CanvasStageHandle } from '@/components/CanvasStage';
 import { clearOverlay, drawBaseScene } from '@/features/painters';
 import { useRaf } from '@/features/hooks/useRaf';
@@ -33,15 +36,14 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
     { style, className }: CanvasGridProps,
     ref,
 ) {
-    const [rows, cols, cellSize, cells, start, goal] = useGridStore(
-        useShallow((s) => [s.rows, s.cols, s.cellSize, s.cells, s.start, s.goal] as const),
+    const [rows, cols, cellSize, cells, weights, start, goal, markersHidden] = useGridStore(
+        useShallow((s) => [s.rows, s.cols, s.cellSize, s.cells, s.weights, s.start, s.goal, s.markersHidden] as const),
     );
 
     const stageRef = useRef<CanvasStageHandle>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    const dragMode = useRef<DragMode>(DragMode.None);
-    const brushRef = useRef<Brush>(Brush.Wall);
+    const dragModeRef = useRef<DragMode>(DragMode.None);
 
     const schedule = useRaf();
 
@@ -57,12 +59,21 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
             },
             redrawBase: () => {
                 const ctx = stageRef.current?.getBaseCtx();
-                const api = useGridStore.getState();
                 if (ctx)
-                    drawBaseScene(ctx, rows, cols, cellSize, cells, start, goal, api.validStart(), api.validGoal());
+                    drawBaseScene({
+                        ctx,
+                        rows,
+                        cols,
+                        cellSize,
+                        cells,
+                        weights,
+                        start,
+                        goal,
+                        markersHidden,
+                    });
             },
         }),
-        [rows, cols, cellSize, cells, start, goal],
+        [rows, cols, cellSize, cells, weights, start, goal, markersHidden],
     );
 
     // animation frames schedule
@@ -70,10 +81,19 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
         const ctx = stageRef.current?.getBaseCtx();
         if (!ctx) return;
         schedule(() => {
-            const api = useGridStore.getState();
-            drawBaseScene(ctx, rows, cols, cellSize, cells, start, goal, api.validStart(), api.validGoal());
+            drawBaseScene({
+                ctx,
+                rows,
+                cols,
+                cellSize,
+                cells,
+                weights,
+                start,
+                goal,
+                markersHidden,
+            });
         });
-    }, [rows, cols, cellSize, cells, start, goal, schedule]);
+    }, [rows, cols, cellSize, cells, weights, start, goal, markersHidden, schedule]);
 
     // hit testing
     const hitCell = useCallback(
@@ -86,23 +106,41 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
         [cellSize],
     );
 
-    const paintAt = useCallback((r: number, c: number) => {
+    const paintAt = useCallback((r: number, c: number): boolean => {
         const api = useGridStore.getState();
-        if (r < 0 || c < 0 || r >= api.rows || c >= api.cols) return;
-        const k = api.idx(r, c);
+        const settings = useSettingsStore.getState();
+        if (r < 0 || c < 0 || r >= api.rows || c >= api.cols) return false;
+
+        const id = api.idx(r, c);
         const sId = api.idx(api.start.r, api.start.c);
         const gId = api.idx(api.goal.r, api.goal.c);
-        if (k === sId || k === gId) return;
+        if (id === sId || id === gId) return false;
 
-        const want: CellKind = brushRef.current === Brush.Wall ? CellKind.wall : CellKind.empty;
-        if (api.cells[k] === want) return;
-        api.setCell(r, c, want);
-        api.refresh();
+        const { tool } = settings;
+
+        switch (tool.type) {
+            case 'wall': {
+                const want: CellKind = dragModeRef.current === DragMode.Paint ? CellKind.wall : CellKind.empty;
+                if (want === CellKind.wall) {
+                    return api.setWall(r, c);
+                } else {
+                    return api.clearWall(r, c);
+                }
+            }
+            case 'weight': {
+                if (dragModeRef.current === DragMode.Paint) {
+                    return api.setWeight(r, c, tool.weight);
+                } else {
+                    return api.clearWeight(r, c);
+                }
+            }
+        }
     }, []);
 
     const onPointerDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
             const api = useGridStore.getState();
+            const settings = useSettingsStore.getState();
             if (api.gridLock) return;
 
             e.preventDefault();
@@ -117,14 +155,20 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
             const { r, c } = hitCell(e);
 
             if (r === api.start.r && c === api.start.c) {
-                dragMode.current = DragMode.MoveStart;
+                dragModeRef.current = DragMode.MoveStart;
             } else if (r === api.goal.r && c === api.goal.c) {
-                dragMode.current = DragMode.MoveGoal;
+                dragModeRef.current = DragMode.MoveGoal;
             } else {
-                const startsOnWall = api.inBounds(r, c) && api.at(r, c) === CellKind.wall;
-                dragMode.current = DragMode.Paint;
-                brushRef.current = e.button === 2 || e.altKey || startsOnWall ? Brush.Erase : Brush.Wall;
-                paintAt(r, c);
+                const { tool } = settings;
+                const cellAt = api.at(r, c);
+                const weightAt = api.weightAt(r, c);
+                const toErase =
+                    e.button === 2 ||
+                    e.altKey ||
+                    (api.inBounds(r, c) && cellAt === CellKind.wall && tool.type === 'wall') ||
+                    (api.inBounds(r, c) && tool.type === 'weight' && tool.weight === weightAt);
+                dragModeRef.current = toErase ? DragMode.Erase : DragMode.Paint;
+                if (paintAt(r, c)) api.refresh();
             }
         },
         [hitCell, paintAt],
@@ -136,19 +180,23 @@ export const CanvasGrid = forwardRef<CanvasGridHandle, CanvasGridProps>(function
         } catch {
             console.error('failed to release capture: ' + e);
         }
-        dragMode.current = DragMode.None;
+        dragModeRef.current = DragMode.None;
     }, []);
 
     const onPointerMove = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
             if (useGridStore.getState().gridLock) return;
-            if (dragMode.current === DragMode.None) return;
+            if (dragModeRef.current === DragMode.None) return;
+
             const api = useGridStore.getState();
             const { r, c } = hitCell(e);
-            if (dragMode.current === DragMode.Paint) paintAt(r, c);
-            else if (dragMode.current === DragMode.MoveStart) api.setStart(r, c);
-            else if (dragMode.current === DragMode.MoveGoal) api.setGoal(r, c);
-            api.refresh();
+            let changed = false;
+
+            if (dragModeRef.current === DragMode.MoveStart) changed = api.setStart(r, c);
+            else if (dragModeRef.current === DragMode.MoveGoal) changed = api.setGoal(r, c);
+            else changed = paintAt(r, c);
+
+            if (changed) api.refresh();
         },
         [hitCell, paintAt],
     );

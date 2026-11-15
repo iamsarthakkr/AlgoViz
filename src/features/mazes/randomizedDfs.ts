@@ -1,18 +1,16 @@
 // Authored by - Sarthak Kumar
 //
-// floodFill: randomized iterative DFS backtracker ("growing tree" maze) over the
+// randomizedDfs: randomized iterative DFS backtracker ("growing tree" maze) over the
 // odd/odd cell lattice — real cells sit at odd coordinates, walls at even coordinates.
 
 import { Coord } from '@/types/grid';
 import { MazeGenerator } from '@/types/mazeGenerator';
-import { random, second_neighbors4, shuffle } from '@/features/algo/utils';
+import { getId, inBounds } from '@/utils/coord';
+import { random, secondNeighbors4, shuffle } from '@/features/algo/utils';
 
 // depth first backtracking
-export const floodFill: MazeGenerator = function* (rows, cols) {
+export const randomizedDfs: MazeGenerator = function* (rows, cols) {
     yield { type: 'fill-wall' };
-
-    const id = (s: Coord) => s.r * cols + s.c;
-    const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
 
     const stack: Coord[] = [];
     const seen = new Uint8Array(rows * cols);
@@ -23,16 +21,16 @@ export const floodFill: MazeGenerator = function* (rows, cols) {
     };
 
     stack.push(start);
-    seen[id(start)] = 1;
+    seen[getId(start, cols)] = 1;
     yield { type: 'carve', at: start };
 
     while (stack.length > 0) {
         const u = stack[stack.length - 1];
 
-        let neighs = second_neighbors4(u);
+        let neighs = secondNeighbors4(u);
         shuffle(neighs);
         neighs = neighs.filter((v) => {
-            return inb(v) && !seen[id(v)];
+            return inBounds(v, rows, cols) && !seen[getId(v, cols)];
         });
 
         if (neighs.length === 0) {
@@ -41,7 +39,7 @@ export const floodFill: MazeGenerator = function* (rows, cols) {
         }
 
         const to = neighs[random(0, neighs.length - 1)];
-        const to_id = id(to);
+        const toId = getId(to, cols);
 
         const mid: Coord = {
             r: (u.r + to.r) / 2,
@@ -51,7 +49,7 @@ export const floodFill: MazeGenerator = function* (rows, cols) {
         yield { type: 'carve', at: mid };
         yield { type: 'carve', at: to };
 
-        seen[to_id] = 1;
+        seen[toId] = 1;
         stack.push(to);
     }
 

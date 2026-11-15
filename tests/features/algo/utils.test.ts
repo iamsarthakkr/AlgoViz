@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { equal, neighbors4, random, randomEven, randomOdd, second_neighbors4, shuffle } from '@/features/algo/utils';
+import { neighbors4, pathCost, random, randomEven, randomOdd, secondNeighbors4, shuffle } from '@/features/algo/utils';
+import { DEFAULT_WEIGHT, WEIGHT_LEVELS } from '@/utils/constants';
+import { parseGrid } from '../../helpers/grid';
 import { fixRandom, seedRandom } from '../../helpers/random';
 
 describe('random helpers', () => {
@@ -63,11 +65,6 @@ describe('shuffle', () => {
 });
 
 describe('coordinate helpers', () => {
-    it('equal compares by value', () => {
-        expect(equal({ r: 1, c: 2 }, { r: 1, c: 2 })).toBe(true);
-        expect(equal({ r: 1, c: 2 }, { r: 2, c: 1 })).toBe(false);
-    });
-
     it('neighbors4 returns up, right, down, left', () => {
         expect(neighbors4({ r: 5, c: 5 })).toEqual([
             { r: 4, c: 5 },
@@ -77,12 +74,32 @@ describe('coordinate helpers', () => {
         ]);
     });
 
-    it('second_neighbors4 returns cells two steps away', () => {
-        expect(second_neighbors4({ r: 5, c: 5 })).toEqual([
+    it('secondNeighbors4 returns cells two steps away', () => {
+        expect(secondNeighbors4({ r: 5, c: 5 })).toEqual([
             { r: 3, c: 5 },
             { r: 5, c: 7 },
             { r: 7, c: 5 },
             { r: 5, c: 3 },
         ]);
+    });
+});
+
+describe('pathCost', () => {
+    const grid = parseGrid(['S1', '2G']);
+    const [LIGHT] = WEIGHT_LEVELS;
+    const path = [
+        { r: 0, c: 0 },
+        { r: 0, c: 1 },
+        { r: 1, c: 1 },
+    ];
+
+    // the cost is paid on entering a cell, and a path never enters its first cell
+    it('sums the weight of every cell after the first', () => {
+        expect(pathCost(path, grid)).toBe(LIGHT + DEFAULT_WEIGHT);
+    });
+
+    it('is 0 for a single cell or an empty path', () => {
+        expect(pathCost(path.slice(0, 1), grid)).toBe(0);
+        expect(pathCost([], grid)).toBe(0);
     });
 });

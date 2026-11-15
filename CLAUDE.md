@@ -7,10 +7,11 @@
 ## What this project is
 
 AlgoViz is a pathfinding-algorithm visualizer. The user paints walls on a grid, places a
-start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's) and/or a
-maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls), and
+start/goal marker, picks an algorithm (BFS, DFS, Bidirectional BFS, Dijkstra's, A\*, Greedy best-first) and/or a
+maze generator (Recursive Division, Prim's, randomized DFS flood-fill, random walls, terrain), and
 watches the algorithm explore the grid cell-by-cell in an animated overlay, ending with the
-traced shortest/found path.
+traced path. Cells can be weighted: Dijkstra's and A\* find the cheapest path, and the others report what
+theirs really costs.
 
 It's a static single-page canvas app (Vite, no router — one view at `/`), one Zustand store for grid data,
 one for UI/settings, and a generator-based "algorithm as a sequence of yielded events"
@@ -63,13 +64,13 @@ src/
     store/               Zustand stores: useGridStore (grid data), useSettingsStore (UI state)
     CanvasGrid/          The interactive canvas: pointer handling, base-layer draw scheduling
     painters/            Pure canvas-drawing functions (base scene, overlay/algo events, palette)
-    algo/                Pathfinding algorithms as generator functions (bfs, dfs, dijkstra, ...)
+    algo/                Pathfinding algorithms as generator functions (bfs, dfs, dijkstra, astar, ...)
     mazes/               Maze/pattern generators as generator functions (prims, recursiveDivision, ...)
     animations/          The generator "runner" (rAF playback engine) + hooks that drive algo/maze runs
     Toolbar/             AlgoPickers (algorithm/maze dropdowns), PlaybackControls (play/pause/step/clear, speed)
     hooks/               useRaf (coalesce into one rAF callback), useResponsiveGrid (sizes the grid to its box),
                          useInfoModal (info dialog open state + first-visit flag in localStorage)
-  store/                 Plain (non-Zustand) data structures: ring-buffer Queue, binary min-heap
+  lib/data-structures/   Plain (non-Zustand) data structures: ring-buffer Queue, binary MinPriorityQueue
   types/                 Shared TypeScript types (grid, algo, mazeGenerator, settings, common)
   utils/                 Small pure helpers (grid init/snap, grid sizing in layout.ts, clamp, speed presets, constants)
 tests/                   Mirrors src/ one-to-one (src/features/algo/bfs.ts → tests/features/algo/bfs.test.ts)
@@ -79,9 +80,8 @@ tests/                   Mirrors src/ one-to-one (src/features/algo/bfs.ts → t
                          fake ResizeObserver (resize.ts), fake algo controller / maze generator (controllers.ts)
 ```
 
-Note: there are **two unrelated things called "store"** in this repo — `src/store/` (data
-structures: `Queue`, `min_priority_queue`) and `src/features/store/` (Zustand app state). Don't
-confuse them when navigating.
+Note: `src/features/store/` is Zustand app state only. The algorithms' data structures (`Queue`,
+`MinPriorityQueue`) live in `src/lib/data-structures/`.
 
 ## Tests
 
@@ -94,8 +94,7 @@ confuse them when navigating.
 - Animation: `installFakeRaf()` from `tests/helpers/raf.ts` replaces `requestAnimationFrame`;
   advance with `frame()` / `flush()` (wrap in `act()` when React state updates).
 - Known bugs are pinned with `it.fails(...)` plus a `BUG:` comment explaining the bug and the fix. When
-  you fix one, the `it.fails` starts failing — flip it to `it` (or remove the label from
-  `KNOWN_OUT_OF_BOUNDS` in the maze contract).
+  you fix one, the `it.fails` starts failing — flip it to `it`.
 
 ## Core architectural idea
 
@@ -109,22 +108,36 @@ makes play/pause/step/skip-to-end and speed control "free" — they're all just 
 controls, not algorithm-specific code. See ARCHITECTURE.md for the full flow.
 
 Adding a new algorithm or maze generator is meant to be "write one generator file, register
-it in an index.ts map". The contract suites in `tests/` check a new entry automatically; the
-remaining friction is the per-file `id`/`inb`/`isWall` helpers and the parallel labels array.
+it". The contract suites in `tests/` check a new entry automatically, and the coordinate helpers
+(`getId`, `getCoord`, `inBounds`, `isWall`, `equal`) are shared from `utils/coord.ts`.
 
 ## Conventions actually used in this codebase
 
-- Algorithms/mazes register themselves in a `Record<string, T>` plus a parallel `string[]`
-  labels array in the corresponding `features/<x>/index.ts` (e.g. `algorithms` +
-  `algoLabels` in `features/algo/index.ts`). Keep both in sync when adding one.
+- Algorithms register as **one entry** in `features/algo/registry.ts` (`algoRegistry`: label, `run`,
+  `weighted`, `shortest`, `description`); `algoLabels` and `algorithmMap` are derived from it, and
+  array order is the dropdown order. A new entry also needs its flags added to the metadata test
+  in `tests/features/algo/index.test.ts`. Mazes work the same way: one entry in
+  `features/mazes/registry.ts` (`mazeRegistry`: label, `run`, `group`), with `mazeMap` and the
+  dropdown's `mazeSections` derived from it. The group sets what the contract demands, so a new
+  entry also needs its group added to the test in `tests/features/mazes/index.test.ts`.
+- Every generator states what it resets, and the hook maps each event to one store call: a wall maze
+  yields `fill-wall`, or `clear-wall` plus `clear-weights`; a terrain entry leaves walls alone.
+  A generator that reads the board calls `getCells()` when it starts, and `sequence(...)` starts each
+  generator only after the one before has finished, so it sees what that one built.
 - Grid coordinates are `{r, c}` (`Coord`), flattened to a 1D index via `r * cols + c`
   everywhere (grid store, algorithms, mazes, painters) — there is no 2D array anywhere.
+- `weights` is a flat array parallel to `cells`: the cost to enter each cell. Walls stay in `cells`
+  (can I enter?), so wall checks don't change. Only plain cells carry weight, and marker cells never
+  count (`getGridSnapshot` normalises them). Take values from `WEIGHT_LEVELS`: the painter only
+  knows those, so another value would count but draw as a plain cell.
+- Store mutators return whether they changed anything. Call `refresh()` only on `true`: a
+  `gridVersion` bump re-solves a finished run.
 - Two canvases are stacked per grid: a **base** layer (cells/walls/markers, redrawn on grid
   state changes) and an **overlay** layer (frontier/visited/path, painted directly and
   imperatively by the runner's event callback, bypassing React re-renders for performance).
 - `gridLock` (in `useGridStore`) is the mechanism that disables pointer editing while an
   algorithm or maze generator is running.
-- One copy of every piece of state. The user's **selections** (algorithm, speed) live only in
+- One copy of every piece of state. The user's **selections** (algorithm, speed, draw tool) live only in
   `useSettingsStore`: the dropdowns write there and `useAlgoController` reads from there, never
   keeping its own copy. A run's **status** comes only from the runner (`onStatusChange`);
   controls never set it. Details in ARCHITECTURE.md §2 and §7.

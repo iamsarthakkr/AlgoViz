@@ -1,0 +1,43 @@
+// Authored by - Sarthak Kumar
+//
+// registry: every maze/pattern generator as one entry (label, run, group); array order is the menu order.
+// mazeMap and the dropdown's mazeSections are derived from it, so they can't drift.
+// - the three Recursive Division entries share one factory, parameterized by verticalProb
+
+import { MazeEntry, MazeMap } from '@/types/mazeGenerator';
+import { randomizedDfs } from './randomizedDfs';
+import { prims } from './prims';
+import { randomGenerator } from './random';
+import { recursiveDivision } from './recursiveDivision';
+import { clearBoard, clearWalls, clearWeights } from './clear';
+import { randomWeightsGenerator } from './randomWeights';
+import { terrainGenerator } from './terrain';
+import { loopsGenerator } from './loops';
+import { sequence } from './sequence';
+
+export const mazeRegistry: readonly MazeEntry[] = [
+    { label: 'Weighted Maze', run: sequence(prims, loopsGenerator, terrainGenerator), group: 'Mazes' },
+    { label: 'Recursive Division', run: recursiveDivision(), group: 'Mazes' },
+    { label: 'Recursive Division (vertical skew)', run: recursiveDivision(0.7), group: 'Mazes' },
+    { label: 'Recursive Division (horizontal skew)', run: recursiveDivision(0.3), group: 'Mazes' },
+    { label: "Prim's", run: prims, group: 'Mazes' },
+    { label: 'Randomized Depth First Search', run: randomizedDfs, group: 'Mazes' },
+    { label: 'Random Walls', run: randomGenerator, group: 'Mazes' },
+
+    { label: 'Terrain Blobs', run: terrainGenerator, group: 'Terrain' },
+    { label: 'Random Weights', run: randomWeightsGenerator, group: 'Terrain' },
+    { label: 'Add Loops', run: loopsGenerator, group: 'Terrain' },
+
+    { label: 'Clear Walls', run: clearWalls, group: 'Clear' },
+    { label: 'Clear Weights', run: clearWeights, group: 'Clear' },
+    { label: 'Clear Board', run: clearBoard, group: 'Clear' },
+];
+
+export const mazeGroups: readonly string[] = Array.from(new Set(mazeRegistry.map((entry) => entry.group)));
+export const mazeMap: MazeMap = Object.freeze(
+    Object.fromEntries(mazeRegistry.map((entry) => [entry.label, entry.run])),
+);
+export const mazeSections = mazeGroups.map((group) => ({
+    title: group,
+    options: mazeRegistry.filter((entry) => entry.group === group).map((e) => e.label),
+}));

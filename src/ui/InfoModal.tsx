@@ -5,25 +5,16 @@
 // - Prev/next arrows on both sides, dots to jump to a slide, and ← / → keys
 // - Every slide gets the same minimum height, so the box doesn't jump as you page through
 // - Opens on the first slide every time
-// - Algorithm names come from the registry (algoLabels), so a renamed algorithm can't go stale here
+// - The algorithms slide renders the registry (label + description), so it can't go stale
 
 import React from 'react';
 import { Modal } from '@/components/Modal';
 import { ChevronIcon } from '@/icons/ChevronIcon';
-import { algoLabels } from '@/features/algo';
+import { algoRegistry } from '@/features/algo';
 import { lightPalette as palette } from '@/features/painters';
 import { Callback } from '@/types/common';
 
 const REPO_URL = 'https://github.com/iamsarthakkr/AlgoViz';
-
-const ALGO_DESCRIPTIONS: Record<string, string> = {
-    'Breadth-first search': 'Explores outward in rings, one step at a time. Always finds the shortest path.',
-    'Depth-first search': 'Follows one route as far as it can before backtracking. Finds a path, not the shortest.',
-    'Bidirectional BFS':
-        'Searches from the start and the goal at once and stops where they meet. Shortest path, usually fewer cells visited.',
-    "Dijkstra's":
-        'Always expands the cheapest cell next. Every step costs the same on this grid, so it behaves like BFS.',
-};
 
 const StartMark = () => (
     <span aria-hidden="true" style={{ color: palette.start }}>
@@ -56,10 +47,11 @@ const SLIDES: Slide[] = [
         body: (
             <ul className="space-y-2.5">
                 <li>
-                    <b>Draw walls:</b> drag on the grid.
+                    <b>Draw:</b> pick Wall or a weight in the legend, then drag on the grid. Weighted cells cost more to
+                    cross.
                 </li>
                 <li>
-                    <b>Erase:</b> start a drag on a wall, or drag with right-click or Alt held.
+                    <b>Erase:</b> start a drag on a cell that matches your tool, or drag with right-click or Alt held.
                 </li>
                 <li>
                     <b>Move start / goal:</b> drag <StartMark /> or <GoalMark />.
@@ -69,7 +61,8 @@ const SLIDES: Slide[] = [
                     <b>Pause</b> stops, <b>Speed</b> changes the pace, <b>Clear</b> wipes the result.
                 </li>
                 <li>
-                    <b>Mazes:</b> pick one from <b>Mazes &amp; Patterns</b> to fill the grid with walls.
+                    <b>Mazes:</b> <b>Mazes &amp; Patterns</b> builds walls, adds terrain or clears the board.{' '}
+                    <b>Weighted Maze</b> does it all in one go.
                 </li>
             </ul>
         ),
@@ -78,10 +71,10 @@ const SLIDES: Slide[] = [
         title: 'The algorithms',
         body: (
             <dl className="space-y-2.5">
-                {algoLabels.map((label) => (
-                    <div key={label}>
-                        <dt className="font-semibold">{label}</dt>
-                        <dd className="opacity-80">{ALGO_DESCRIPTIONS[label]}</dd>
+                {algoRegistry.map((entry) => (
+                    <div key={entry.label}>
+                        <dt className="font-semibold">{entry.label}</dt>
+                        <dd className="opacity-80">{entry.description}</dd>
                     </div>
                 ))}
             </dl>

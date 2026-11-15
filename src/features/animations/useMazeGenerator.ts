@@ -2,32 +2,42 @@
 //
 // useMazeGenerator: orchestrates maze generation playback.
 // - Unlike useAlgoController, events write directly into useGridStore (walls ARE grid state)
-// - Hides start/goal + locks the grid for the run, restores/re-snaps them on the `done` event
+// - Hides start/goal + locks the grid for the run, shows them again (re-snapped) on the `done` event
+// - Each event maps to one store call. Whether walls or weights get reset is the generator's choice:
+//   fill-wall drops weights too, clear-wall keeps them (clear-weights does that)
 // - Always autoplays; no pause/step controls are exposed for maze generation
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { createRunner, RunnerApi } from './runner';
 import { getGridSnapshot } from './utils';
-import { MazeGenerator, MazeGeneratorEvent } from '@/types/mazeGenerator';
+import { MazeGeneratorEvent, MazeMap } from '@/types/mazeGenerator';
 import { useGridStore } from '@/features/store';
-import { CellKind } from '@/types/grid';
 import { Callback } from '@/types/common';
 
 export type MazeGeneratorApi = {
     generate: (key: string) => void;
 };
 
-export type MazeGeneratorRegistry = Record<string, MazeGenerator>;
-
 type Options = {
     speed?: number; // EPS
 };
 
-export function useMazeGenerator(registry: MazeGeneratorRegistry, opts: Options = {}): MazeGeneratorApi {
-    const [speed] = useState<number>(opts.speed ?? 120);
+export function useMazeGenerator(registry: MazeMap, opts: Options = {}): MazeGeneratorApi {
+    const speed = opts.speed ?? 120;
     const runnerRef = useRef<RunnerApi<MazeGeneratorEvent>>(null);
-    const clearnupRef = useRef<Callback>(null);
+    const cleanupRef = useRef<Callback>(null);
+
+    useEffect(() => {
+        return () => {
+            if (runnerRef.current) {
+                runnerRef.current.pause();
+            }
+            if (cleanupRef.current) {
+                cleanupRef.current();
+            }
+        };
+    }, []);
 
     const generateMaze = useCallback(
         (key: string) => {
@@ -39,34 +49,30 @@ export function useMazeGenerator(registry: MazeGeneratorRegistry, opts: Options 
                 runnerRef.current = null;
             }
 
-            if (clearnupRef.current) {
-                clearnupRef.current();
-                clearnupRef.current = null;
+            if (cleanupRef.current) {
+                cleanupRef.current();
+                cleanupRef.current = null;
             }
 
             const snap = getGridSnapshot();
             if (!snap) return null;
 
             const gridApi = useGridStore.getState();
-            const start = { ...gridApi.start };
-            const goal = { ...gridApi.goal };
 
             // block updates to grid
             gridApi.setGridLock(true);
-            // remove start and goal
-            gridApi.setStart(-1, -1);
-            gridApi.setGoal(-1, -1);
+            gridApi.hideMarkers();
 
-            clearnupRef.current = () => {
+            cleanupRef.current = () => {
                 // set back start and goal
-                useGridStore.getState().setStart(start.r, start.c);
-                useGridStore.getState().setGoal(goal.r, goal.c);
+                gridApi.showMarkers();
+
                 // enable updates on grid
                 useGridStore.getState().setGridLock(false);
                 useGridStore.getState().refresh();
             };
 
-            const gen = algo(snap.rows, snap.cols);
+            const gen = algo(snap.rows, snap.cols, () => useGridStore.getState().cells);
             runnerRef.current = createRunner(
                 gen,
                 (event) => {
@@ -79,15 +85,21 @@ export function useMazeGenerator(registry: MazeGeneratorRegistry, opts: Options 
                             gridApi.clearWalls();
                             break;
                         case 'carve':
-                            gridApi.setCell(event.at.r, event.at.c, CellKind.empty);
+                            gridApi.clearWall(event.at.r, event.at.c);
                             break;
                         case 'wall':
-                            gridApi.setCell(event.at.r, event.at.c, CellKind.wall);
+                            gridApi.setWall(event.at.r, event.at.c);
+                            break;
+                        case 'weight':
+                            gridApi.setWeight(event.at.r, event.at.c, event.w);
+                            break;
+                        case 'clear-weights':
+                            gridApi.clearWeights();
                             break;
                         case 'done':
-                            if (clearnupRef.current) {
-                                clearnupRef.current();
-                                clearnupRef.current = null;
+                            if (cleanupRef.current) {
+                                cleanupRef.current();
+                                cleanupRef.current = null;
                             }
                             break;
                         default:

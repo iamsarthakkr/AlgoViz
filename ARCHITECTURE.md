@@ -19,7 +19,7 @@ main.tsx → App.tsx
        │                         └─ CanvasStage (forwardRef → CanvasStageHandle)
        │                              ├─ <canvas> base   (useCanvasLayer)
        │                              └─ <canvas> overlay (useCanvasLayer)
-       ├─ [stats]    ui/Stats <aside>    (active run: algorithm, status, visited, path steps)
+       ├─ [stats]    ui/Stats <aside>    (active run: algorithm, status, visited, path steps, cost; note)
        ├─ [legend]   ui/Legend <aside>   (swatches drawn by the grid's painters)
        └─ [controls] PlaybackControls (algo): Visualize, Pause/Step, Clear path, Dropdown (speed)
 ```
@@ -27,7 +27,7 @@ main.tsx → App.tsx
 `[name]` is the CSS grid area each piece is placed in (see "Page layout" below).
 
 `ui/Grid.tsx` is the nearest common parent of everything that drives or shows a run, so it owns
-the **one** algorithm controller (`useAlgoController(gridRef, algorithms, …)`) and maze
+the **one** algorithm controller (`useAlgoController(gridRef, algorithmMap, …)`) and maze
 generator and passes them down as props (`algo`, `maze`). There must be exactly one instance:
 calling the hook in two components would create two independent controllers with separate
 runners. Plain props rather than Context or a store: the tree is one or two levels deep, and
@@ -103,47 +103,62 @@ type Grid = {
     cols;
     cellSize: number;
     cells: CellKind[]; // flat array, index = r*cols+c, CellKind.empty | CellKind.wall
+    weights: number[]; // parallel flat array: the cost to ENTER each cell, DEFAULT_WEIGHT = plain
     start;
-    goal: Coord; // {r:-1,c:-1} is the sentinel for "removed" (used during maze gen)
+    goal: Coord;
     gridLock: boolean; // true while an algorithm/maze run owns the grid
+    markersHidden: boolean; // true while a maze generates; start/goal keep their coordinates
 };
 ```
 
-Plus derived helpers (`idx`, `inBounds`, `at`, `validStart`, `validGoal`) and mutators
-(`setCell`, `clearWalls`, `fillWalls`, `setStart`, `setGoal`, `setGridLock`, `refresh`, `reset`,
+Plus derived helpers (`idx`, `inBounds`, `at`, `weightAt`) and mutators
+(`setWall`, `clearWall`, `clearWalls`, `fillWalls`, `setWeight`, `clearWeight`, `clearWeights`,
+`setStart`, `setGoal`, `hideMarkers`, `showMarkers`, `setGridLock`, `refresh`, `reset`,
 `resize`).
 
 Key behaviors baked into the mutators:
 
-- `setCell` refuses to overwrite the start/goal cell, and no-ops if the value is unchanged
-  (so `refresh()`/re-renders aren't triggered for redundant paints).
+- Mutators return whether they changed anything and skip `set` when they didn't. `setWall` and
+  `setWeight` refuse the start/goal cell. Callers `refresh()` only on `true`: a `gridVersion` bump
+  re-solves a finished run, and `pointermove` fires many times per cell.
 - `setStart`/`setGoal` **snap** to the nearest non-wall cell via a small BFS
   (`utils/grid.ts:nearestEmptyCell`) whenever the target cell would land on a wall, and
   refuse the move if it would collide with the other marker.
-- `setStart(-1,-1)` / `setGoal(-1,-1)` (negative coords) is the "no marker" sentinel used by
-  `useMazeGenerator` to hide start/goal while carving.
+- `hideMarkers()` / `showMarkers()` hide start/goal while a maze generates. Moving and hiding are
+  separate, so an off-grid drag always clamps. While hidden, `setWall` may wall over the markers'
+  cells; `showMarkers` re-snaps both off any walls, keeping them apart (`nearestEmptyCell`'s `toAvoid`).
+- **Only plain cells carry weight.** Walls and weights are separate arrays because they answer
+  different questions (can I enter? what does it cost?), so wall checks everywhere stay unchanged.
+  `setWall`/`fillWalls` reset the weight and `setWeight` refuses walls, markers and anything outside
+  `WEIGHT_LEVELS` (the painter only knows those, A\* will assume every step costs at least
+  `DEFAULT_WEIGHT`, and `undefined` would turn into a `NaN` distance that Dijkstra never queues). A marker dropped on terrain
+  keeps the stored weight, so the terrain is back when it moves on. It never counts: no path enters
+  the start, every path enters the goal once, so `getGridSnapshot` sets both to the default in its
+  copy and the painter draws them plain. `clearWalls` keeps weights, which is what lets Clear Walls
+  and a `clear-wall` maze leave resetting them to `clear-weights`.
 - `refresh()` is the manual dirty flag — most mutators (all but `reset`/`resize`) don't bump `gridVersion` themselves;
-  callers (`CanvasGrid`'s pointer handlers) call `api.refresh()` after a batch of `setCell`
-  calls so a drag-paint doesn't trigger one version bump per cell.
+  callers (`CanvasGrid`'s pointer handlers) call `api.refresh()` once per real change, and
+  mazes once at the end, so a maze doesn't bump the version per cell.
 - `reset(rows?, cols?, cellSize?)` builds a fresh empty grid via `initGrid` (start/goal re-placed
   for the new size; no arguments = the `utils/constants.ts` defaults). It **bumps** `gridVersion`
-  rather than restarting at 0: runners are cached by the version they were built from, so a
-  restart could make a runner built for the old grid look current.
+  rather than restarting at 0: the active run is tagged with the version it was built from, so a
+  restart could make a run built for the old grid look current.
 - `resize(cellSize)` changes only the drawn cell size (dimensions, walls and markers are kept),
   clamped to `[MIN_CELL, MAX_CELL]`. It bumps `gridVersion` so a finished run is re-solved and
   repainted at the new size, and is a no-op when the clamped size equals the current one.
   Rows/cols are only ever chosen by `reset`; the grid dimensions are not user-configurable.
 
-`GridSnapShot` (= `Grid`, no methods) is what gets handed to algorithms/mazes — a frozen,
+`GridSnapShot` (= `Grid` without `markersHidden`, no methods) is what gets handed to algorithms/mazes — a frozen,
 plain-data copy so a generator's view of the grid can't be mutated mid-run by further
 pointer input (see §4).
 
 ### `useSettingsStore` (`features/store/useSettingsStore.ts`) — UI/session state
 
-The user's selections: `algoKey` and `speed` (`'slow'|'medium'|'fast'`). This is the **only**
-copy: the dropdowns write here and nothing else, and `useAlgoController` reads from here (the
-speed preset live, converted via `utils/settings.ts:speedToEPS`; the algorithm with
-`getState()` when a run starts, see §7). Keeping one copy means the two can't drift apart. The
+The user's selections: `algoKey`, `speed` (`'slow'|'medium'|'fast'`) and `tool` (`DrawTool`: Wall
+or a weight level). This is the **only** copy: the pickers write here and nothing else.
+`useAlgoController` reads from here (the speed preset live, converted via
+`utils/settings.ts:speedToEPS`; the algorithm with `getState()` when a run starts, see §7), and
+`CanvasGrid` reads the tool when a drag starts (§9). Keeping one copy means the two can't drift apart. The
 maze dropdown is an action menu (picking a maze generates it now), so no maze key is stored.
 
 ### State that intentionally lives outside Zustand
@@ -152,11 +167,11 @@ High-frequency/imperative state is kept in `useRef`/local `useState` inside hook
 in a store, because it changes many times per second during playback and/or must survive
 across renders without forcing re-renders:
 
-- `useAlgoController`: `runners` (a `Map<algoKey, {runner, buildVersion}>` holding the active
-  run; it never holds more than one, see §7), `currentAlgoRef` (the active run's key, for
-  synchronous reads in callbacks), `cancelPathAnimRef`, `sawPathEventRef`, `speedRef`.
+- `useAlgoController`: `activeRef` (`{ key, runner, buildVersion } | null`, the active run, see §7;
+  its `key` is the only record of which algorithm is active), `cancelPathAnimRef`,
+  `sawPathEventRef`, `speedRef`.
 - `useMazeGenerator`: `runnerRef`, a cleanup closure ref that restores start/goal.
-- `CanvasGrid`: `dragMode` (paint / move-start / move-goal), `brushRef` (wall vs erase).
+- `CanvasGrid`: `dragModeRef` (paint / erase / move-start / move-goal), fixed once per drag.
 - `useInfoModal` (`features/hooks/`): the info dialog's `open` state, owned by `GridPage` and
   shared by the toolbar's button and `InfoModal`. Its initial value comes from `localStorage`
   (`algoviz:info-seen`): the dialog opens on a first visit and is marked seen when it is closed.
@@ -181,12 +196,16 @@ every passive effect, so the canvas is resized first and the algorithm controlle
 `useEffect` then repaints onto the resized canvas (with a plain `useEffect` the resize would
 run after the repaint and erase a finished path). `components/CanvasStage.tsx` stacks
 two of these — `base` (pointer-events auto) and `overlay` (`pointer-events: none`,
-absolutely positioned on top) — and exposes both contexts via `useImperativeHandle`.
+absolutely positioned on top) — and exposes both contexts via `useImperativeHandle`. The overlay
+has `mix-blend-mode: multiply`, so it tints the base rather than covering it: weights, grid lines
+and markers stay visible through a run, and a weight painted over a finished run shows at once. It
+must be the CSS property, since `globalCompositeOperation` only blends within one canvas.
 
 `features/CanvasGrid/CanvasGrid.tsx` owns a `CanvasStage` and is the thing everything else
 talks to:
 
-- Subscribes to `useGridStore` with `useShallow` for `[rows, cols, cellSize, cells, start, goal]`.
+- Subscribes to `useGridStore` with `useShallow` for `[rows, cols, cellSize, cells, weights, start,
+goal, markersHidden]`.
 - One `useEffect`, debounced through `useRaf()` (coalesces multiple state changes within one
   animation frame into a single draw call), redraws the **base** layer via
   `painters.drawBaseScene(...)` whenever grid data changes. It does **not** touch the overlay:
@@ -199,19 +218,26 @@ talks to:
 
 ### Painters (`features/painters/`) — pure drawing functions, no state
 
-- `basePainter.ts`: `drawBaseScene` = clear+fill background → paint every cell (wall/empty
-  color, with a 0.25px overdraw fudge to avoid antialiasing seams between adjacent same-kind
-  cells) → `drawGridLines` (skips the line segment between two adjacent wall cells, so wall
-  blocks render as solid contiguous shapes) → outer border → `drawMarkers` (start = arrow
-  glyph, goal = ringed dot). `drawStartMarker`/`drawGoalMarker` are exported on their own too:
-  the legend draws its Start/Goal swatches with them, so the legend can't drift from the grid.
+- `basePainter.ts`: `drawBaseScene(scene)` takes one scene object = clear+fill background → paint
+  every cell (wall, weight tint or empty color, with a 0.25px overdraw fudge to avoid antialiasing
+  seams between adjacent same-kind cells; marker cells are always plain) → `drawGridLines` (skips
+  the line segment between two adjacent wall cells, so wall blocks render as solid contiguous
+  shapes) → weight dots → outer border → `drawMarkers` unless hidden (start = arrow glyph, goal =
+  ringed dot). The 1-3 dots (`drawWeightDots`) make the level readable without colour; they are
+  skipped below `WEIGHT_DOTS_MIN_CELL` (16px), where they'd be noise. `drawStartMarker`,
+  `drawGoalMarker` and `drawWeightDots` are exported on their own too: the legend draws its swatches
+  with them, so the legend can't drift from the grid.
 - `overlayPainter.ts`: `paintAlgoEvent` switches on `AlgoEvent.type` and fills one cell
   (`frontier` color for `enqueue`, `visited` color for `visit`); `path` events are only
   instant-painted if `drawPathInstant` is passed (otherwise the runner leaves it to
   `animateFinalPath`). `animateFinalPath` runs its **own independent rAF loop** (not the
   generator runner) that fills `nps` (nodes-per-second, default 240) path cells per second
   until done, returning a cancel function. `clearOverlay` is a plain `ctx.clearRect`.
-- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`. **`darkPalette` is
+- `colors.ts`: `GridPalette` with a `lightPalette` and `darkPalette`. The overlay colours are opaque:
+  multiplied with white they look exactly like themselves, and repainting a cell can't darken it.
+  The palette also has `weights` (one tint
+  per `WEIGHT_LEVELS` entry, same order) and `weightMark` (the dots). `weightLevel(w)` and
+  `weightColor(w)` turn a stored weight into its level index and tint. **`darkPalette` is
   currently identical to `lightPalette`**, and both painter modules hardcode
   `import { lightPalette as palette }` — there is no theme-switching logic anywhere in the
   app despite the two-palette scaffold.
@@ -222,27 +248,37 @@ talks to:
 
 ```ts
 type AlgoEvent =
-    { type: 'enqueue'; at: Coord } | { type: 'visit'; at: Coord } | { type: 'path'; nodes: Coord[]; visited: number };
+    | { type: 'enqueue'; at: Coord }
+    | { type: 'visit'; at: Coord }
+    | { type: 'path'; nodes: Coord[]; visited: number; cost: number };
 type PathFinder = (grid: GridSnapShot) => Generator<AlgoEvent, void, void>;
 ```
 
-Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `bidirectionalBfs`) is a
-generator function matching `PathFinder`. Shape is consistent across all four:
+Every algorithm in `features/algo/*.ts` (`bfs`, `dfs`, `dijkstra`, `astar`, `greedy`, `bidirectionalBfs`) is a
+generator function matching `PathFinder`. Shape is consistent across all of them:
 
-1. Build local closures over the snapshot: `id(coord)`, `inb(coord)`, `isWall(coord)`,
-   `getCoord(id)` — **re-implemented per file** rather than shared.
+1. Index the flat grid with the shared helpers in `utils/coord.ts`: `getId(coord, cols)`,
+   `getCoord(id, cols)`, `inBounds(coord, rows, cols)`, `isWall(cells, id)`, `equal(a, b)`.
+   `isWall` takes the index, which every loop already has for its typed arrays.
 2. Seed the frontier structure (`Queue` for bfs/bidirectional, plain array-as-stack for dfs,
-   `min_priority_queue` binary heap for dijkstra), `yield {type:'enqueue', at:start}`.
+   `MinPriorityQueue` binary heap for dijkstra, astar and greedy, ordered by a comparator each passes in), `yield {type:'enqueue', at:start}`.
 3. Main loop: pop next node, `yield {type:'visit', ...}`, expand `neighbors4` (4-directional,
    `features/algo/utils.ts`), track `seen`/`dist` in typed arrays (`Uint8Array`/`Int32Array`
    sized `rows*cols`) and `parent` pointers for path reconstruction, `yield {type:'enqueue'}`
    for each newly-discovered neighbor, stop early the instant `goal` is reached.
 4. Reconstruct the path by walking `parent` back from `goal`, reverse it, and
-   `yield {type:'path', nodes, visited}` exactly once, as the generator's final yield.
+   `yield {type:'path', nodes, visited, cost}` exactly once, as the generator's final yield.
 
-`dijkstra` currently uses a uniform edge weight of `1` for every step (`const w = 1`) — with
-no weighted-terrain cell kind in the grid, it is behaviorally equivalent to BFS but pays heap
-overhead.
+`dijkstra` and `astar` are the algorithms that read `weights`: stepping into a cell costs `weights[cell]`. It
+stops when the goal is **popped**, not when it is first enqueued, because with weights the first
+route to reach a cell isn't always the cheapest (BFS can stop on enqueue; Dijkstra can't). On a
+plain grid it matches BFS's path length, at the cost of the heap.
+
+Every algorithm reports `cost` on its `path` event through the shared `pathCost(nodes, grid)` in
+`features/algo/utils.ts`: the sum of the weights of every cell after the first, since a path never
+enters its start. So an algorithm that ignores weights while searching still reports what its path
+really costs, which is how the stats panel shows the difference. Marker cells need no special case:
+the snapshot already sets them to the default weight.
 
 `bidirectionalBfs` runs two independent BFS frontiers (`queue[0]` from start, `queue[1]` from
 goal) in lockstep, alternating one pop per frontier per outer loop iteration, and stops the
@@ -255,6 +291,24 @@ grid-store interaction happens in the runner's event callback (`useAlgoControlle
 what lets `getGridSnapshot()` (`features/animations/utils.ts`) safely `.slice()` the cells
 array once up front and hand algorithms an immutable view.
 
+`astar` is `dijkstra` with the heap keyed on `f = g + h`, where `g` is the real cost so far and `h` is
+the Manhattan distance to the goal. Four details matter:
+
+- **`h` must never overestimate.** Every step costs at least `DEFAULT_WEIGHT`, so Manhattan distance
+  can't exceed the real cost. That's why the store refuses anything cheaper than the levels.
+- **The popped value is `f`, not `g`.** The next cost comes from `dist[current]`, never from the heap.
+- **`closed` handles stale heap entries,** not a `d > dist[id]` check. Rebuilding `g` as `f - h` loses
+  cells to rounding as soon as `h` is fractional: with Euclidean `h` it gave wrong costs on most boards.
+  With a consistent `h`, a cell's first pop is already its cheapest, so later copies are skipped.
+- **Ties on `f` go to the smaller `h`.** On an open board every cell between start and goal ties, so
+  without this the search fills that rectangle. With it, a 41-cell path visits 41 cells rather than 148
+  (Dijkstra visits 684). It changes the work done, never the cost.
+
+`greedy` (greedy best-first) is the same heap keyed on `h` alone, with no `g`. It always expands the
+cell that looks nearest, so on an open board it walks straight to the goal, but it commits to
+dead ends and ignores weights. With no cost to improve, a cell is marked `seen` when first enqueued
+(as in BFS) and keeps its first parent. It exists for the contrast: A\* is greedy plus `g`.
+
 ## 5. Maze generators & the same pattern, different event set
 
 `types/mazeGenerator.ts`:
@@ -265,31 +319,56 @@ type MazeGeneratorEvent =
     | { type: 'clear-wall' }
     | { type: 'carve'; at: Coord }
     | { type: 'wall'; at: Coord }
+    | { type: 'weight'; at: Coord; w: number }
+    | { type: 'clear-weights' }
     | { type: 'done' };
-type MazeGenerator = (rows: number, cols: number) => Generator<MazeGeneratorEvent, void, void>;
+type MazeGenerator = (
+    rows: number,
+    cols: number,
+    getCells: () => CellKind[], // the live board
+) => Generator<MazeGeneratorEvent, void, void>;
 ```
+
+`useMazeGenerator` maps each event to one store call and decides nothing itself, so each generator
+states what it resets: `fill-wall` also drops weights, while `clear-wall` keeps them and a wall maze
+that uses it yields `clear-weights` too. Entries live in `features/mazes/registry.ts`
+(`{ label, run, group }`, group `Mazes | Terrain | Clear`); `mazeMap` and `mazeSections` are derived.
 
 `features/mazes/*.ts`:
 
 - `random.ts` (`randomGenerator`): clears walls, then for every even-coordinate-skip cell,
-  probabilistically emits a `wall` event (`wall_prob = 0.35`).
-- `floodFill.ts`: fills walls, then a randomized iterative DFS backtracker over the
+  probabilistically emits a `wall` event (`wallProb = 0.35`).
+- `randomizedDfs.ts`: fills walls, then a randomized iterative DFS backtracker over the
   "odd/odd" cell lattice (standard maze-on-a-grid technique — real cells sit at odd
   coordinates, walls between them at even coordinates), carving the midpoint wall + the new
   cell as it advances, backtracking via a stack when a cell has no unvisited neighbors.
 - `prims.ts`: fills walls, randomized Prim's algorithm over the same odd/odd lattice —
   maintains a `frontiers` list of candidate walls, randomly picks one, carves it plus the
   cell on the far side if that cell is unvisited.
-- `recursiveDivision.ts`: **a factory**, `recursiveDivision(vertical_prob = 0.5) => MazeGenerator`.
+- `recursiveDivision.ts`: **a factory**, `recursiveDivision(verticalProb = 0.5) => MazeGenerator`.
   Clears walls, draws the outer boundary, then recursively bisects the interior with a
-  vertical or horizontal wall (weighted by `vertical_prob`) that has exactly one carved gap,
-  pushing the two sub-chambers onto explicit stacks (`row_stack`/`col_stack`) instead of
-  recursing, until a chamber is too small to divide further. `mazes/index.ts` calls this
+  vertical or horizontal wall (weighted by `verticalProb`) that has exactly one carved gap,
+  pushing the two sub-chambers onto explicit stacks (`rowStack`/`colStack`) instead of
+  recursing, until a chamber is too small to divide further. `mazes/registry.ts` calls this
   factory three times with different skew probabilities (0.5 default, 0.7 vertical-skewed,
   0.3 horizontal-skewed) to register three distinct maze options from one implementation.
 
-All maze generators operate on the _lattice coordinates directly_ (no `GridSnapShot`
-needed since they don't read existing walls) — they take `(rows, cols)` and yield
+- `randomWeights.ts`: clears weights, then a coin flip per open cell for a random level.
+- `terrain.ts`: clears weights, then one blob per 100 cells of board, from a shuffled list of open
+  cells (so a nearly walled board can't run out of seeds). Each blob spreads by BFS, so it stays out
+  of cells walled off from its seed, while straight-line distance sets the level and keeps it round.
+  A local level array means a cell is only ever raised, once per level.
+- `loops.ts`: collects interior walls with passages on two opposite sides and walls on the other
+  two, shuffles them and carves `LOOP_SHARE` of them.
+- `clear.ts`: the Clear actions, generators of one or two reset events, so they get `generate()`'s
+  cancel and marker restore for free.
+- `sequence.ts`: `sequence(...gens)` chains generators, dropping each inner `done` and yielding one
+  at the end. `done` runs the hook's cleanup, so an inner one would unlock the grid halfway through.
+  Generators are lazy, so each starts only after the one before has finished and its events are in
+  the store. That's why `getCells` is a getter: Weighted Maze's Add Loops reads the finished maze.
+
+The wall mazes work on the _lattice coordinates directly_ and don't read the board. Only the
+generators that build on it call `getCells()`, once, when they start. All of them yield
 coordinate-only events, which is why `useMazeGenerator` can restore/relocate start & goal
 independently after the run.
 
@@ -324,23 +403,26 @@ piece of code that both algorithms and mazes are played back through; neither `A
 This is the biggest piece of glue. Responsibilities:
 
 - **Selected vs active**: the _selected_ algorithm and speed live in `useSettingsStore` (§2); the
-  controller owns only the _active_ run, the one on screen (`currentAlgoRef` + `runAlgo` state).
+  controller owns only the _active_ run, the one on screen (`activeRef`, mirrored into `runAlgo`
+  state for rendering; `''` before the first run).
   Changing the selection doesn't touch the active run. `getOrCreateCurrent()` decides which
   runner a control acts on: the active one while it is running (even if another algorithm was
   selected meanwhile) or paused on the selected algorithm; otherwise a fresh run of the selected
   algorithm. The selection is read with `getState()` rather than subscribed to, so it takes
   effect when a control is used, not when the dropdown changes. `pause()` acts on the active
   runner directly and never creates one.
-- **Runner bookkeeping**: `runners: Map<algoKey, {runner, buildVersion}>`. Starting a run cleans
+- **Runner bookkeeping**: `activeRef: { key, runner, buildVersion } | null`. Starting a run cleans
   up the previous one (`cleanupPreviousRun`: pause, cancel the path animation, clear the
-  overlay, reset stats, drop it from the map), so the map holds at most the active run. (A
-  single `activeRef` would say this more directly; planned for the refactor.)
+  overlay, reset stats, set `activeRef` to `null`), then records the new one.
+- **Options**: `animatePath` and `pathNps` are read out of `opts` as plain values. `Grid` passes
+  `opts` inline, a new object every render, so depending on the object would rebuild every
+  control and re-run the grid-version effect on each render (a test pins this).
 - **Speed**: subscribes to the store's preset and applies it to the active runner in an effect,
   so a change takes effect mid-run; `speedRef` gives new runners the current speed.
 - **Grid-version invalidation**: `getOrCreateCurrent()` compares the cached runner's
   `buildVersion` against the live `gridVersion` (from `useGridStore`); a mismatch triggers a
   fresh `createRunnerFor`. A separate `useEffect` watches `gridVersion` directly: if the
-  _currently displayed_ algorithm's cached build is stale, it immediately rebuilds — and if
+  _currently displayed_ run was built for an older grid, it immediately rebuilds — and if
   the old runner had already finished (`AlgoStatus.done`), the rebuild is played back
   **instantly** (`instant=true` → `drawPathInstant` + `r.skipToEnd()`) so editing the grid
   after a completed run doesn't require re-clicking Visualize to see the corrected path.
@@ -353,10 +435,10 @@ This is the biggest piece of glue. Responsibilities:
   runner's status is read _before_ the rebuild, since pausing a running runner changes it.
 - **Event → paint wiring** (`getEventHandler`): grabs the overlay ctx once per snapshot, and
   returns a closure that calls `paintAlgoEvent` for every event, tracks `visitedApprox`
-  (incremented on `visit`), and on the terminal `path` event: sets `pathLen`, unlocks the
+  (incremented on `visit`), and on the terminal `path` event: sets `pathLen` and `pathCost`, unlocks the
   grid (`setGridLock(false)`), and — unless `instant` — cancels any prior path animation and
-  starts a new one via `animateFinalPath`, whose per-frame callback keeps the start/goal
-  markers redrawn on top (since the overlay animation paints over them cell-by-cell).
+  starts a new one via `animateFinalPath`. Markers need no redraw: they are on the base canvas and
+  show through the blended overlay.
 - **Status**: `AlgoStatus | undefined` (`undefined` = no run yet), set **only** from the
   runner's `onStatusChange`; controls never set it. A new runner reports nothing at creation,
   so `createRunnerFor` writes its starting status (`initial`) itself, _after_
@@ -366,7 +448,7 @@ This is the biggest piece of glue. Responsibilities:
 - **`clear()`**: discards the active run and builds a fresh one for the _selected_ algorithm
   (status `initial`, stats reset, overlay cleared), so Visualize afterwards starts over rather
   than resuming. Used by the toolbar's "Clear path" button and before starting a maze.
-- Cleanup on unmount pauses every cached runner and cancels any in-flight path animation.
+- Cleanup on unmount pauses the active runner and cancels any in-flight path animation.
 
 ## 8. `useMazeGenerator` — orchestrates maze playback
 
@@ -377,42 +459,50 @@ state (walls), not an overlay.
 Sequence on `generate(key)`:
 
 1. Pause/discard any previous maze runner + pending cleanup closure.
-2. Snapshot current start/goal, then **remove markers** (`setStart(-1,-1)`, `setGoal(-1,-1)`)
-   and **lock the grid** — this both hides the markers during carving and stops the player
-   from painting walls mid-generation.
-3. Build the generator from `(rows, cols)` and wrap it in `createRunner`, whose `onEvent`
-   applies `fillWalls`/`clearWalls`/`setCell(..., wall|empty)` directly for each event type.
-4. On the generator's `done` event, run the stored cleanup closure: restore the original
-   start/goal coordinates (re-snapped through `setStart`/`setGoal`'s nearest-empty-cell logic
-   if the maze happened to wall over them), unlock the grid, and `refresh()`.
+2. **Hide the markers** (`hideMarkers()`) and **lock the grid** — this both hides the markers
+   during carving and stops the player from painting walls mid-generation.
+3. Build the generator from `(rows, cols, getCells)` and wrap it in `createRunner`, whose `onEvent`
+   maps each event to one store call (`fillWalls`, `clearWalls`, `clearWall`, `setWall`, `setWeight`,
+   `clearWeights`). The hook decides nothing: `fill-wall` drops weights by itself, and a wall maze
+   that starts with `clear-wall` yields `clear-weights` too (the store's `clearWalls` keeps terrain
+   on purpose, for Clear Walls).
+4. On the generator's `done` event, run the stored cleanup closure: `showMarkers()` (re-snapped
+   if the maze walled over them), unlock the grid, and `refresh()`.
 5. `runnerRef.current.play()` — maze generation always autoplays (no pause/step controls are
    wired to it from the toolbar; `AlgoPickers.onGenerateMaze` also calls
    `algoController.clear()` first so a stale path overlay doesn't linger under the new maze).
+6. On unmount, the hook pauses the runner and runs the same cleanup, so the grid is never left
+   locked with its markers hidden.
 
 ## 9. Pointer interaction (`CanvasGrid`)
 
-Single-pointer state machine via `DragMode` (`None | Paint | MoveStart | MoveGoal`), driven
+Single-pointer state machine via `DragMode` (`None | Paint | Erase | MoveStart | MoveGoal`), driven
 by native Pointer Events (`onPointerDown/Move/Up/Leave/Cancel`) with `setPointerCapture` so drags
 tracked outside the canvas bounds still deliver move events.
 
 - `hitCell(e)`: converts client coords to `{r,c}` via the wrapper's bounding rect and
   `cellSize` (no rounding/clamping to grid bounds — out-of-range is filtered by `paintAt`).
+- **Tool vs drag mode:** the tool (`DrawTool`, picked in the legend) says which layer a drag edits;
+  the drag mode says whether it paints or erases that layer. Both are fixed at pointer down, so one
+  drag never mixes the two.
 - `onPointerDown`: no-ops if `gridLock`. If the hit cell is the start or goal marker, enters
-  `MoveStart`/`MoveGoal` drag mode. Otherwise enters `Paint` mode, choosing the brush once
-  for the whole drag: `Erase` if the drag starts on a wall (so touch, with no right button or
-  Alt, can erase), or with the right mouse button or Alt held; else `Wall`. Then paints
-  immediately. The start cell is bounds-checked first: cells are a flat array, so an
-  out-of-range column would read the next row's cell.
-- `onPointerMove`: continues painting or dragging the active marker per `dragMode`, calling
-  `api.refresh()` after every move to bump `gridVersion` (this is what invalidates cached
-  algorithm runners live, mid-drag).
-- `onPointerUp`/`onPointerLeave`/`onPointerCancel`: releases pointer capture, resets `dragMode`
+  `MoveStart`/`MoveGoal` drag mode. Otherwise it picks `Erase` if the right mouse button or Alt is
+  held or the starting cell matches the tool (a wall for the wall tool, the **same level** for the
+  weight tool, so a different level is painted over rather than erased), else `Paint`. This is also
+  how touch erases, with no right button or Alt. Then paints immediately. The start cell is
+  bounds-checked first: cells are a flat array, so an out-of-range column would read the next row's
+  cell.
+- `onPointerMove`: continues painting or dragging the active marker per the drag mode, and calls
+  `api.refresh()` only if a cell or marker actually changed. A `gridVersion` bump invalidates
+  runners and re-solves a finished run, and `pointermove` fires many times per cell.
+- `onPointerUp`/`onPointerLeave`/`onPointerCancel`: releases pointer capture, resets the drag mode
   to `None` (cancel: the browser or OS took over the gesture, so no `pointerup` will follow).
 - The wrapper sets `touch-action: none`, so a touch drag paints instead of scrolling the page.
-- `paintAt`: guards bounds and refuses to paint over the start/goal cell; no-ops if the cell
-  is already the target kind (avoids redundant store writes during a drag).
+- `paintAt`: guards bounds and refuses to paint over the start/goal cell, then routes by tool and
+  drag mode to `setWall`/`clearWall`/`setWeight`/`clearWeight`, returning whether anything changed.
+  The wall tool paints over terrain (dropping its weight); the weight tool skips walls.
 - Right-click context menu is suppressed (`onContextMenu` → `preventDefault`) since
-  right-click is repurposed as the erase-brush trigger.
+  right-click is repurposed as an erase trigger.
 
 ## 10. End-to-end flow: clicking "Visualize"
 
@@ -432,8 +522,7 @@ tracked outside the canvas bounds still deliver move events.
    can run at high event rates without janking React).
 6. When the generator yields its terminal `path` event: grid unlocks, `pathLen` updates, and
    `animateFinalPath` takes over with
-   its own independent rAF loop to trace the path cell-by-cell at `pathNps` (240/s default),
-   re-drawing the start/goal markers on top each frame. When the generator then returns, the
+   its own independent rAF loop to trace the path cell-by-cell at `pathNps` (240/s default). When the generator then returns, the
    runner reports `done` through `onStatusChange`.
 7. Meanwhile the **base** layer is untouched throughout — it only redraws in response to
    `useGridStore` changes (wall edits, marker moves), which is exactly what keeps grid
@@ -441,7 +530,7 @@ tracked outside the canvas bounds still deliver move events.
 
 Changing the grid after a run started: pointer edits are blocked while running (`gridLock`),
 so this happens through edits while paused or finished, or a resize (which can happen mid-run).
-Any `setCell`/`setStart`/`setGoal` + `refresh()`, or `resize`, bumps `gridVersion`. The
+Any wall, weight or marker edit + `refresh()`, or `resize`, bumps `gridVersion`. The
 controller's `useEffect` on `gridVersion` rebuilds the active run from the new snapshot — if the
 prior run had already reached `done`, the rebuild is instantly skipped-to-end so the corrected
 path reappears without user action; otherwise it is left at `initial` status (press Visualize

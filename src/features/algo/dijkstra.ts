@@ -1,60 +1,57 @@
 // Authored by - Sarthak Kumar
 //
 // dijkstra: shortest path via a binary min-heap priority queue keyed on distance.
-// NOTE: edge weight is hardcoded to 1 (no weighted terrain cell yet), so this is
-// currently behaviorally equivalent to BFS on grids the UI can produce.
 
-import { CellKind, Coord } from '@/types/grid';
+import { Coord } from '@/types/grid';
 import { PathFinder } from '@/types/algo';
-import { equal, neighbors4 } from './utils';
-import { min_priority_queue } from '@/store/priority_queue';
+import { neighbors4, pathCost } from './utils';
+import { equal, getCoord, getId, inBounds, isWall } from '@/utils/coord';
+import { Comparator, MinPriorityQueue } from '@/lib/data-structures/priorityQueue';
+
+type T = { dist: number; id: number };
+const comparator: Comparator<T> = (a, b) => {
+    return a.dist < b.dist;
+};
 
 const inf = 1e9;
 export const dijkstra: PathFinder = function* (grid) {
-    const { rows, cols, cells, start, goal } = grid;
+    const { rows, cols, cells, weights, start, goal } = grid;
 
-    const id = (s: Coord) => s.r * cols + s.c;
-    const inb = (s: Coord) => s.r >= 0 && s.r < rows && s.c >= 0 && s.c < cols;
-    const isWall = (s: Coord) => cells[id(s)] === CellKind.wall;
-    const getCoord = (id: number): Coord => ({ r: Math.floor(id / cols), c: id % cols });
-
-    const queue = new min_priority_queue();
+    const queue = new MinPriorityQueue<T>(comparator);
     const dist = new Int32Array(rows * cols).fill(inf);
     const parent = new Int32Array(rows * cols).fill(-1);
 
-    const start_id = id(start);
-    dist[start_id] = 0;
-    queue.push(dist[start_id], start_id);
+    const startId = getId(start, cols);
+    dist[startId] = 0;
+    queue.push({ dist: dist[startId], id: startId });
 
     yield { type: 'enqueue', at: start };
 
     let visited = 0;
-    let found = false;
     while (!queue.empty()) {
-        if (found) break;
-        const { dist: d, id: curr_id } = queue.pop()!;
-        const node = getCoord(curr_id);
-        if (d > dist[curr_id]) continue;
+        const { dist: d, id: currId } = queue.pop()!;
+        const node = getCoord(currId, cols);
+        if (d > dist[currId]) continue;
         visited += 1;
 
         if (equal(goal, node)) {
-            found = true;
             break;
         }
 
         yield { type: 'visit', at: node };
 
         for (const neigh of neighbors4(node)) {
-            if (!inb(neigh) || isWall(neigh)) continue;
-            const next_id = id(neigh);
-            const w = 1;
+            if (!inBounds(neigh, rows, cols)) continue;
+            const nextId = getId(neigh, cols);
+            if (isWall(cells, nextId)) continue;
+            const w = weights[nextId];
 
             const nd = d + w;
 
-            if (nd < dist[next_id]) {
-                dist[next_id] = nd;
-                parent[next_id] = curr_id;
-                queue.push(nd, next_id);
+            if (nd < dist[nextId]) {
+                dist[nextId] = nd;
+                parent[nextId] = currId;
+                queue.push({ dist: nd, id: nextId });
                 yield { type: 'enqueue', at: neigh };
             }
         }
@@ -62,15 +59,15 @@ export const dijkstra: PathFinder = function* (grid) {
 
     const path: Coord[] = [];
 
-    if (dist[id(goal)] < inf) {
-        let cur = id(goal);
+    if (dist[getId(goal, cols)] < inf) {
+        let cur = getId(goal, cols);
         while (cur !== -1) {
-            path.push(getCoord(cur));
+            path.push(getCoord(cur, cols));
             cur = parent[cur];
         }
 
         path.reverse();
     }
 
-    yield { type: 'path', nodes: path, visited };
+    yield { type: 'path', nodes: path, visited, cost: pathCost(path, grid) };
 };

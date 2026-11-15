@@ -12,13 +12,16 @@ export enum CellKind {
 export enum DragMode {
     None,
     Paint,
+    Erase,
     MoveStart,
     MoveGoal,
 }
-export enum Brush {
-    Wall,
-    Erase,
-}
+
+// what a drag on the grid paints (a selection in useSettingsStore, picked in the legend)
+export type WallTool = { type: 'wall' };
+export type WeightTool = { type: 'weight'; weight: number };
+
+export type DrawTool = WallTool | WeightTool;
 
 export type Grid = {
     gridVersion: number;
@@ -26,25 +29,32 @@ export type Grid = {
     cols: number;
     cellSize: number;
     cells: CellKind[];
+    weights: number[]; // cost to enter each cell
     start: Coord;
     goal: Coord;
     gridLock: boolean;
+    markersHidden: boolean;
 };
 
 export type GridState = Grid & {
     idx(r: number, c: number): number;
     inBounds(r: number, c: number): boolean;
     at(r: number, c: number): CellKind;
+    weightAt(r: number, c: number): number;
 
-    setCell(r: number, c: number, kind: CellKind): void;
-    clearWalls(): void;
-    fillWalls(): void;
+    setWall(r: number, c: number): boolean;
+    clearWall(r: number, c: number): boolean;
+    clearWalls(): boolean;
+    fillWalls(): boolean;
 
-    setStart(r: number, c: number): void;
-    setGoal(r: number, c: number): void;
+    setWeight(r: number, c: number, w: number): boolean;
+    clearWeight(r: number, c: number): boolean;
+    clearWeights(): boolean;
 
-    validStart(): boolean;
-    validGoal(): boolean;
+    setStart(r: number, c: number): boolean;
+    setGoal(r: number, c: number): boolean;
+    hideMarkers(): boolean;
+    showMarkers(): boolean;
 
     setGridLock(flag: boolean): void;
 
@@ -53,6 +63,6 @@ export type GridState = Grid & {
     resize(cellSize: number): void;
 };
 
-export type GridSnapShot = Grid;
+export type GridSnapShot = Omit<Grid, 'markersHidden'>;
 
 export type GridLayout = Pick<Grid, 'rows' | 'cols' | 'cellSize'>;

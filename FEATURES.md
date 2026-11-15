@@ -5,15 +5,15 @@ What the app does today, ordered core-first. For _how_ each is implemented in de
 
 ## 1. Interactive wall-painting grid
 
-The core surface: a canvas grid (`features/CanvasGrid`) of empty/wall cells. Dragging (mouse,
-touch or pen) paints walls; a drag that **starts on a wall** erases instead, which is how touch
-users erase. Right-click-drag or Alt+drag also erases. The brush is chosen once per drag, so a
-single drag either draws or erases every cell it crosses, never a mix.
+The core surface: a canvas grid (`features/CanvasGrid`) of empty, wall and weighted cells (§9).
+Dragging (mouse, touch or pen) paints with the tool picked in the legend; a drag that **starts on
+a matching cell** erases instead, which is how touch users erase. Right-click-drag or Alt+drag also
+erases. The choice is made once per drag, so a single drag either draws or erases every cell it
+crosses, never a mix.
 
 - Implementation: `CanvasGrid.tsx`'s pointer handlers (`onPointerDown/Move/Up`) compute the
-  hit cell from client coordinates, choose a `Brush` (`Wall`/`Erase`) from the starting cell
-  and the mouse button/modifier key, and write into `useGridStore` via `setCell` + a batched
-  `refresh()`.
+  hit cell from client coordinates, choose `Paint` or `Erase` from the tool, the starting cell
+  and the mouse button/modifier key, and write into `useGridStore`, refreshing only on real changes.
 - Interacts with: the base canvas layer redraws via `drawBaseScene` any time grid state
   changes; a running algorithm locks the grid (`gridLock`) so painting is disabled mid-run.
 
@@ -28,21 +28,25 @@ be dropped on top of the other marker.
   machine; snapping logic lives in `useGridStore.setStart`/`setGoal` calling
   `utils/grid.ts:nearestEmptyCell`.
 - Interacts with: algorithms won't run without both markers present on non-wall cells
-  (`getGridSnapshot` returns `null` if `validStart()`/`validGoal()` fail, which silently
-  no-ops Visualize/Step); maze generation temporarily hides both markers (see §4) and restores
+  (`getGridSnapshot` returns `null` while `markersHidden` is set, which silently no-ops
+  Visualize/Step); maze generation temporarily hides both markers (see §4) and restores
   them afterward, re-snapping if the maze happened to wall over their old position.
 
 ## 3. Pathfinding algorithms (Visualize / Step / Pause / Skip-to-end / Clear)
 
-Four algorithms, selectable from the "Algorithm" dropdown in the toolbar
-(`features/algo/index.ts`):
+Six algorithms, selectable from the "Algorithm" dropdown in the toolbar. They are listed once,
+with their metadata (whether they read weights, when their path is guaranteed cheapest, a
+one-line description), in `features/algo/registry.ts`; the dropdown, the settings store's default,
+the controller's lookup and the info dialog are all derived from that list:
 
 | Algorithm            | File                  | Notes                                                                                                                           |
 | -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Breadth-first search | `bfs.ts`              | Guarantees shortest path (unweighted); ring-buffer `Queue`.                                                                     |
+| Breadth-first search | `bfs.ts`              | Guarantees the shortest path on an unweighted grid, ignores weights; ring-buffer `Queue`.                                       |
 | Depth-first search   | `dfs.ts`              | Explores greedily, does **not** guarantee shortest path; explicit array-as-stack.                                               |
 | Bidirectional BFS    | `bidirectionalBfs.ts` | Two BFS frontiers grown from start and goal simultaneously, meeting in the middle; typically visits fewer cells than plain BFS. |
-| Dijkstra's           | `dijkstra.ts`         | Binary min-heap priority queue (`store/priority_queue.ts`); currently uniform edge weight (no weighted terrain yet).            |
+| Dijkstra's           | `dijkstra.ts`         | Reads weights and always finds the cheapest path; binary min-heap priority queue (`lib/data-structures/priorityQueue.ts`).      |
+| A\*                  | `astar.ts`            | Dijkstra guided by a Manhattan-distance estimate: same cheapest path, usually far fewer cells visited.                          |
+| Greedy best-first    | `greedy.ts`           | Heap keyed on the Manhattan estimate alone: very few cells visited, but no shortest-path guarantee and ignores weights.         |
 
 Each algorithm is a generator that yields one event per unit of work
 (`enqueue`/`visit`/final `path`) rather than computing the answer up front — this is what
@@ -77,20 +81,38 @@ Visualize again to replay against the new grid.
 
 ## 4. Maze & pattern generation
 
-A second dropdown ("Mazes & Patterns", `features/mazes/index.ts`) fills the grid with a
-generated wall pattern, animated the same way algorithms are (generator + `requestAnimationFrame`
-runner), but writing directly into the grid store instead of a canvas overlay:
+A second dropdown ("Mazes & Patterns", `features/mazes/registry.ts`) changes the board, animated
+the same way algorithms are (generator + `requestAnimationFrame` runner), but writing directly into
+the grid store instead of a canvas overlay. It has one collapsible section per group, and one
+section is open at a time, which keeps the menu short on phones.
 
-| Pattern                              | File                                         | Technique                                                                                     |
-| ------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Recursive Division                   | `recursiveDivision.ts` (`vertical_prob=0.5`) | Recursively bisects the interior with single-gap walls, unbiased direction choice.            |
-| Recursive Division (vertical skew)   | same file (`vertical_prob=0.7`)              | Same algorithm, biased toward vertical dividing walls → more horizontally elongated chambers. |
-| Recursive Division (horizontal skew) | same file (`vertical_prob=0.3`)              | Biased toward horizontal dividing walls.                                                      |
-| Prim's                               | `prims.ts`                                   | Randomized minimum-spanning-tree carve over the odd/odd cell lattice.                         |
-| Randomized Depth First Search        | `floodFill.ts`                               | Iterative backtracking carve (classic "growing tree" maze).                                   |
-| Random Walls                         | `random.ts`                                  | Independent per-cell coin flip (35% wall probability), no connectivity guarantee.             |
+**Mazes** replace the board, so walls change and weights are wiped:
 
-Behavior common to all patterns:
+| Pattern                              | File                                        | Technique                                                                                     |
+| ------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Weighted Maze                        | `sequence.ts`                               | Prim's, then Add Loops, then Terrain Blobs, as one run.                                       |
+| Recursive Division                   | `recursiveDivision.ts` (`verticalProb=0.5`) | Recursively bisects the interior with single-gap walls, unbiased direction choice.            |
+| Recursive Division (vertical skew)   | same file (`verticalProb=0.7`)              | Same algorithm, biased toward vertical dividing walls → more horizontally elongated chambers. |
+| Recursive Division (horizontal skew) | same file (`verticalProb=0.3`)              | Biased toward horizontal dividing walls.                                                      |
+| Prim's                               | `prims.ts`                                  | Randomized minimum-spanning-tree carve over the odd/odd cell lattice.                         |
+| Randomized Depth First Search        | `randomizedDfs.ts`                          | Iterative backtracking carve (classic "growing tree" maze).                                   |
+| Random Walls                         | `random.ts`                                 | Independent per-cell coin flip (35% wall probability), no connectivity guarantee.             |
+
+**Terrain** builds on the board, so it can run on top of any maze:
+
+| Pattern        | File               | Technique                                                                                                 |
+| -------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| Terrain Blobs  | `terrain.ts`       | Round blobs, heavy at the centre and light at the rim. Replaces weights; overlaps keep the heavier level. |
+| Random Weights | `randomWeights.ts` | Independent per-cell coin flip (30%) for a random level. Replaces weights.                                |
+| Add Loops      | `loops.ts`         | Opens 12% of the walls that sit between two passages. Keeps weights, and the outer border stays closed.   |
+
+Add Loops exists because Prim's, DFS and Recursive Division leave exactly one route between any two
+cells, so weights can't change the route on them. A loop gives the algorithms a choice.
+
+**Clear** (`clear.ts`): Clear Walls, Clear Weights and Clear Board each reset only their own layer.
+They're generators like the rest, so picking one mid-maze stops the maze and restores the markers.
+
+Behavior common to all entries:
 
 - Generating a maze first calls `algoController.clear()` (discarding any visualized path so
   it doesn't linger under the new walls), then hides the start/goal markers and **locks the
@@ -110,10 +132,12 @@ For the active run, `useAlgoController` tracks and exposes:
 - `visitedApprox` — count of cells visited so far (increments on every `visit` event).
 - `pathLen` — the number of cells on the final path (both endpoints included) once found;
   `undefined` until then, and `0` if the run finishes without reaching the goal.
+- `pathCost` — what the path really costs (the weight of every cell entered), `undefined` until a
+  path is found. Reported by every algorithm, including those that ignore weights while searching.
 - `status` — the runner's `AlgoStatus` (`initial` = ready, `running`, `paused`, `done`), or
   `undefined` before the first run. It comes only from the runner (`onStatusChange`).
 - `runAlgo` — the algorithm of the run these numbers belong to (the active run, which can
-  differ from the dropdown's selection until the next run starts).
+  differ from the dropdown's selection until the next run starts); `''` before the first run.
 
 `ui/Stats.tsx` renders them (`Grid.tsx` passes the values as props):
 
@@ -122,9 +146,17 @@ For the active run, `useAlgoController` tracks and exposes:
 - **Visited**: `visitedApprox`.
 - **Path**: the path length in **steps** (`pathLen - 1`, since `pathLen` counts both
   endpoints); "No path" when the run finished without reaching the goal.
+- **Cost**: `pathCost`. Equal to the steps on a plain grid; comparing it across algorithms shows
+  what ignoring weights costs.
+- **Note**: what the _selected_ algorithm guarantees, from its registry `shortest` flag, in red when,
+  on this grid, its path may not be the cheapest: always for `never`, and for `unweighted-only` only
+  once the grid has weights. It has a fixed two-line height on
+  phones, because picking another algorithm mid-run must not change the row's height.
 
-Before the first run, Status and Path show a "-" placeholder (Algo currently shows the selected
-algorithm until the controller's planned `activeRef` refactor leaves it empty). Every item is rendered in every state:
+Phones show Status, Visited, Path and Cost; Algo is desktop-only, since the header picker names the
+algorithm there (it can briefly differ after a switch mid-run).
+
+Before the first run, Algo, Status, Path and Cost show a "-" placeholder. Every item is rendered in every state:
 on phones the stats are an `auto` grid row, so an item appearing or a value wrapping mid-run
 would change the row's height, resize the grid and stop the run. Only the status is an
 `aria-live` region (the visited count changes every frame). `PlaybackControls.tsx` reads
@@ -157,9 +189,11 @@ chosen from the screen.
   size. If the box is too small even for 12px cells, the grid scrolls instead of shrinking.
 - **Touch:** dragging on the grid paints instead of scrolling the page (`touch-action: none`),
   controls are at least 44px tall, and the bottom bar clears the iPhone home bar.
-- **Legend**: a swatch per item (Start, Goal, Wall, Frontier, Visited, Path) drawn with the
-  grid's own painters and palette, so it always matches the grid (visited is drawn over
-  frontier, as on the grid). Wrapping row on phones, a column on desktop.
+- **Legend**: the **draw palette** (Wall and the weight levels, as toggle buttons) and the **key**
+  (Start, Goal, Frontier, Visited, Path). Every swatch is drawn with the grid's own painters and
+  palette, so it always matches the grid. Rows on
+  phones with short labels (×2), a column on desktop. The selected tool is shown with a ring, which
+  takes no space, so selecting can't resize the phone's legend row or the grid.
 - **Stats**: one row of label-over-value cells on phones, a column on desktop (see §5).
 
 ## 8. Info dialog ("About AlgoViz")
@@ -174,7 +208,28 @@ jump to a slide, and the ← / → keys page through it; it always opens on the 
 - It's a native modal `<dialog>`: Esc, the X or a click outside closes it, focus stays inside
   while open, and the page behind is inert. It takes no layout space, so it doesn't disturb a
   run in progress.
-- The algorithm names come from the registry (`algoLabels`); each needs a one-line description
-  in `ui/InfoModal.tsx` (a test checks every registered algorithm has one).
+- The algorithms slide renders the registry (`algoRegistry`: each label and its `description`),
+  so a new algorithm shows up there automatically (a test checks every entry has a description).
 - Implementation: generic shell `components/Modal.tsx`, content `ui/InfoModal.tsx`, state
   `features/hooks/useInfoModal.ts`.
+
+## 9. Weighted cells
+
+Cells can cost more to cross. Pick a weight in the legend (Light ×2, Medium ×5, Heavy ×10,
+`WEIGHT_LEVELS`) and drag on the grid; a plain cell costs 1 (`DEFAULT_WEIGHT`).
+
+- **Editing:** a drag that starts on the same level erases weights, and one that starts on a
+  different level paints over it, so changing a level takes one drag. Right-click or Alt erases.
+  The weight tool skips walls; the wall tool paints over terrain and removes its weight.
+- **Through a run:** the overlay blends with the grid rather than covering it, so terrain stays
+  visible under frontier, visited and path cells, and a weight painted over a finished run shows
+  at once.
+- **Drawing:** a tint per level, plus 1-3 dots on cells of at least 16px so the level doesn't rely
+  on colour alone.
+- **Rules:** the cost is paid on entering a cell. Only plain cells carry weight: a wall never has
+  one, and the start and goal cells never count. A marker dragged across terrain doesn't damage it.
+- **Mazes** start from a fresh board, so generating one removes all weights. Terrain Blobs and
+  Random Weights add terrain to the current walls, and Weighted Maze builds both. See §4.
+- **Algorithms:** Dijkstra and A\* read weights and find the cheapest path. BFS, DFS, Bidirectional BFS and Greedy
+  best-first ignore them, but still report what their path really costs. Editing a weight after a finished run
+  re-solves it live. See ARCHITECTURE.md §2 and §4.

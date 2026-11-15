@@ -51,7 +51,7 @@ describe('useResponsiveGrid', () => {
         measureBoxAs(LAPTOP);
         render(<Box />);
         const { rows, cols, cellSize } = api();
-        api().setCell(0, 0, CellKind.wall);
+        api().setWall(0, 0);
 
         observers.resize(PHONE.width, PHONE.height);
 

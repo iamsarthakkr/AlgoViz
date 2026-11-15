@@ -30,6 +30,17 @@ describe('nearestEmptyCell', () => {
         expect(nearestEmptyCell(1, 2, g.rows, g.cols, g.cells)).toEqual({ r: 2, c: 3 });
     });
 
+    // showMarkers uses this so the two markers can't land on the same cell
+    it('skips cells in toAvoid, moving on to the next closest', () => {
+        const g = parseGrid(['S...', '....', '...G']);
+        expect(nearestEmptyCell(1, 1, g.rows, g.cols, g.cells, [{ r: 1, c: 1 }])).toEqual({ r: 0, c: 1 });
+        const avoid = [
+            { r: 1, c: 1 },
+            { r: 0, c: 1 },
+        ];
+        expect(nearestEmptyCell(1, 1, g.rows, g.cols, g.cells, avoid)).toEqual({ r: 2, c: 1 });
+    });
+
     it('falls back to the requested cell when the whole grid is walls', () => {
         const cells = Array(9).fill(CellKind.wall);
         expect(nearestEmptyCell(1, 1, 3, 3, cells)).toEqual({ r: 1, c: 1 });

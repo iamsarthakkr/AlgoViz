@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Queue } from '@/store/queue';
+import { Queue } from '@/lib/data-structures/queue';
 
 describe('Queue', () => {
     it('pops in FIFO order', () => {

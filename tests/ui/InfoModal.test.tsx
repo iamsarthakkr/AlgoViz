@@ -64,6 +64,14 @@ describe('InfoModal', () => {
         expect(currentDot()).toBe(0);
     });
 
+    it('explains drawing with the legend and erasing', async () => {
+        const { user } = setup();
+        await user.click(screen.getByRole('button', { name: /How to use it/ }));
+        const slide = screen.getByRole('group', { name: /of/ });
+        expect(slide).toHaveTextContent(/pick Wall or a weight in the legend/);
+        expect(slide).toHaveTextContent(/matches your tool/);
+    });
+
     // names come from the registry; a new algorithm without a description would show a blank line
     it('describes every registered algorithm', async () => {
         const { user } = setup();
