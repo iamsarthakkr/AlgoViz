@@ -5,6 +5,8 @@ algorithm, and watch it explore cell by cell until it traces its path. Six algor
 maze and terrain generators, weighted cells, and step-by-step playback, all on `<canvas>` and
 entirely client-side.
 
+**Live:** [viz.imsarthakkr.tech](https://viz.imsarthakkr.tech/)
+
 ## Features
 
 - **Six algorithms:** BFS, DFS, Bidirectional BFS, Dijkstra's, A\* and Greedy best-first.

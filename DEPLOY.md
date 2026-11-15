@@ -62,12 +62,26 @@ SMOKE_PORT=18080 scripts/smoke-test.sh algo-viz:local   # if 8080 is taken
    `ghcr.io/iamsarthakkr/algo-viz:<version>` and `:latest` — so what the VPS pulls is byte-for-byte what was tested;
 4. creates the GitHub release last, so a release only exists once its image is pullable.
 
+`main` is guarded by a repository ruleset that requires a pull request, so the version bump goes
+through a PR, and the tag is pushed only once that PR is merged:
+
 ```bash
-npm version patch --no-git-tag-version   # bump package.json
+git checkout main && git pull
+git checkout -b release/1.0.1
+npm version patch --no-git-tag-version   # bump package.json (+ lock)
+sed -i '' 's/^APP_VERSION=.*/APP_VERSION=1.0.1/' .env.example
 git commit -am "Release 1.0.1"
+git push -u origin release/1.0.1
+gh pr create --base main --title "Release 1.0.1" --body "Version bump"
+# merge it, then tag the merged main:
+git checkout main && git pull
 git tag v1.0.1
-git push origin main v1.0.1
+git push origin v1.0.1
 ```
+
+Tag `main` after the merge, not the release branch. Squash and rebase merges create a new commit,
+so a tag pushed beforehand would point at a commit that never lands on `main`. (v1.1.0 was tagged
+on the branch first and merged with a merge commit, which keeps that commit in `main`'s history.)
 
 ## Deploying
 
@@ -88,7 +102,7 @@ git push origin main v1.0.1
 3. Add the site to the global Caddyfile and reload Caddy:
 
     ```caddyfile
-    algoviz.example.com {
+    viz.imsarthakkr.tech {
         reverse_proxy 127.0.0.1:3002
     }
     ```
